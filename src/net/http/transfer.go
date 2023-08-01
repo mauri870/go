@@ -707,18 +707,17 @@ func fixLength(isResponse bool, status int, requestMethod string, header Header,
 		return -1, nil
 	}
 
-	// Logic based on Content-Length
-	var cl string
+	// only parse content length if it has a value
 	if len(contentLens) == 1 {
-		cl = textproto.TrimString(contentLens[0])
-	}
-	if cl != "" {
+		// Logic based on Content-Length
+		cl := textproto.TrimString(contentLens[0])
 		n, err := parseContentLength(cl)
 		if err != nil {
 			return -1, err
 		}
 		return n, nil
 	}
+
 	header.Del("Content-Length")
 
 	if isRequest {
@@ -1039,11 +1038,13 @@ func (bl bodyLocked) Read(p []byte) (n int, err error) {
 }
 
 // parseContentLength trims whitespace from s and returns -1 if no value
-// is set, or the value if it's >= 0.
+// is set or the header is empty, otherwise the value if it's >= 0.
 func parseContentLength(cl string) (int64, error) {
 	cl = textproto.TrimString(cl)
+	// The Content-Length must be a valid numeric value.
+	// See: https://datatracker.ietf.org/doc/html/rfc2616/#section-14.13
 	if cl == "" {
-		return -1, nil
+		return -1, badStringError("invalid empty Content-Length", cl)
 	}
 	n, err := strconv.ParseUint(cl, 10, 63)
 	if err != nil {

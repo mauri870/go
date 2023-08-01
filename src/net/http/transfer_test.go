@@ -333,6 +333,10 @@ func TestParseContentLength(t *testing.T) {
 		wantErr error
 	}{
 		{
+			cl:      "",
+			wantErr: badStringError("invalid Content-Length", ""),
+		},
+		{
 			cl:      "3",
 			wantErr: nil,
 		},
