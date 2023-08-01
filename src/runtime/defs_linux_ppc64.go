@@ -21,6 +21,7 @@ const (
 
 	_MADV_DONTNEED   = 0x4
 	_MADV_FREE       = 0x8
+	_MADV_REMOVE     = 0x9
 	_MADV_HUGEPAGE   = 0xe
 	_MADV_NOHUGEPAGE = 0xf
 

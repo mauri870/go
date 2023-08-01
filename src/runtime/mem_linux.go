@@ -50,6 +50,11 @@ func sysUnusedOS(v unsafe.Pointer, n uintptr) {
 	if debug.madvdontneed != 0 && advise != madviseUnsupported {
 		advise = _MADV_DONTNEED
 	}
+
+	if debug.madvremove != 0 && advise != madviseUnsupported {
+		advise = _MADV_REMOVE
+	}
+
 	switch advise {
 	case _MADV_FREE:
 		if madvise(v, n, _MADV_FREE) == 0 {
@@ -61,6 +66,12 @@ func sysUnusedOS(v unsafe.Pointer, n uintptr) {
 		// MADV_FREE was added in Linux 4.5. Fall back on MADV_DONTNEED if it's
 		// not supported.
 		if madvise(v, n, _MADV_DONTNEED) == 0 {
+			break
+		}
+		atomic.Store(&adviseUnused, madviseUnsupported)
+		fallthrough
+	case _MADV_REMOVE:
+		if madvise(v, n, _MADV_REMOVE) == 0 {
 			break
 		}
 		atomic.Store(&adviseUnused, madviseUnsupported)
