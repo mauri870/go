@@ -30,6 +30,7 @@ var (
 	GOMIPS   = gomips()
 	GOMIPS64 = gomips64()
 	GOPPC64  = goppc64()
+	GOARM64  = goarm64()
 	GOWASM   = gowasm()
 	ToolTags = toolTags()
 	GO_LDSO  = defaultGO_LDSO
@@ -116,6 +117,16 @@ func goppc64() int {
 	}
 	Error = fmt.Errorf("invalid GOPPC64: must be power8, power9, power10")
 	return int(defaultGOPPC64[len("power")] - '0')
+}
+
+func goarm64() string {
+	switch v := envOr("GOARM64", defaultGOARM64); v {
+	case "v8.0", "v8.1", "v8.2", "v8.3", "v8.4", "v8.5", "v8.6", "v8.7", "v8.8", "v8.9",
+		"v9.0", "v9.1", "v9.2", "v9.3", "v9.4":
+		return v
+	}
+	Error = fmt.Errorf("invalid GOARM64: must be v8.0, v8.1, v8.2, v8.3, v8.4, v8.5, v8.6, v8.7, v8.8, v8.9, v9.0, v9.1, v9.2, v9.3, v9.4")
+	return defaultGOARM64
 }
 
 type gowasmFeatures struct {

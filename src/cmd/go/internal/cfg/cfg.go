@@ -416,6 +416,7 @@ var (
 	GOMIPS64 = envOr("GOMIPS64", buildcfg.GOMIPS64)
 	GOPPC64  = envOr("GOPPC64", fmt.Sprintf("%s%d", "power", buildcfg.GOPPC64))
 	GOWASM   = envOr("GOWASM", fmt.Sprint(buildcfg.GOWASM))
+	GOARM64  = envOr("GOARM64", buildcfg.GOARM64)
 
 	GOPROXY    = envOr("GOPROXY", "")
 	GOSUMDB    = envOr("GOSUMDB", "")

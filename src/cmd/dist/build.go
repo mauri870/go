@@ -38,6 +38,7 @@ var (
 	gomips           string
 	gomips64         string
 	goppc64          string
+	goarm64          string
 	goroot           string
 	goroot_final     string
 	goextlinkenabled string
@@ -177,6 +178,12 @@ func xinit() {
 	}
 	goppc64 = b
 
+	b = os.Getenv("GOARM64")
+	if b == "" {
+		b = "v8.0"
+	}
+	goarm64 = b
+
 	if p := pathf("%s/src/all.bash", goroot); !isfile(p) {
 		fatalf("$GOROOT is not set correctly or not exported\n"+
 			"\tGOROOT=%s\n"+
@@ -238,6 +245,7 @@ func xinit() {
 	os.Setenv("GOPPC64", goppc64)
 	os.Setenv("GOROOT", goroot)
 	os.Setenv("GOROOT_FINAL", goroot_final)
+	os.Setenv("GOARM64", goarm64)
 
 	// Set GOBIN to GOROOT/bin. The meaning of GOBIN has drifted over time
 	// (see https://go.dev/issue/3269, https://go.dev/cl/183058,
@@ -1226,6 +1234,7 @@ func cmdenv() {
 	xprintf(format, "GOTOOLDIR", tooldir)
 	if goarch == "arm" {
 		xprintf(format, "GOARM", goarm)
+		xprintf(format, "GOARM64", goarm64)
 	}
 	if goarch == "386" {
 		xprintf(format, "GO386", go386)
