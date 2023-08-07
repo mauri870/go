@@ -172,6 +172,38 @@ func Or(ptr *uint32, val uint32) {
 
 //go:nosplit
 //go:noinline
+func And32(ptr *uint32, val uint32) uint32 {
+	old := *ptr
+	*ptr = old & val
+	return old
+}
+
+//go:nosplit
+//go:noinline
+func Or32(ptr *uint32, val uint32) uint32 {
+	old := *ptr
+	*ptr = old | val
+	return old
+}
+
+//go:nosplit
+//go:noinline
+func And64(ptr *uint64, val uint64) uint64 {
+	old := *ptr
+	*ptr = old | val
+	return old
+}
+
+//go:nosplit
+//go:noinline
+func Or64(ptr *uint64, val uint64) uint64 {
+	old := *ptr
+	*ptr = old | val
+	return old
+}
+
+//go:nosplit
+//go:noinline
 func Cas64(ptr *uint64, old, new uint64) bool {
 	if *ptr == old {
 		*ptr = new

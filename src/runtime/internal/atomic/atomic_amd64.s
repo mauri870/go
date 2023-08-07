@@ -223,3 +223,43 @@ TEXT ·And(SB), NOSPLIT, $0-12
 	LOCK
 	ANDL	BX, (AX)
 	RET
+
+// func Or32(addr *uint32, v uint32) uint32
+TEXT ·Or32(SB), NOSPLIT, $0-20
+	MOVQ	ptr+0(FP), AX
+	MOVL	val+8(FP), BX
+	MOVL	(AX), CX
+	LOCK
+	ORL	BX, (AX)
+	MOVL 	CX, ret+16(FP)
+	RET
+
+// func And32(addr *uint32, v uint32) uint32
+TEXT ·And32(SB), NOSPLIT, $0-20
+	MOVQ	ptr+0(FP), AX
+	MOVL	val+8(FP), BX
+	MOVL 	(AX), CX
+	LOCK
+	ANDL	BX, (AX)
+	MOVL	CX, ret+16(FP)
+	RET
+
+// func Or64(addr *uint64, v uint64) uint64
+TEXT ·Or64(SB), NOSPLIT, $0-24
+	MOVQ	ptr+0(FP), AX
+	MOVQ	val+8(FP), BX
+	MOVQ 	(AX), CX
+	LOCK
+	ORQ	BX, (AX)
+	MOVQ	CX, ret+16(FP)
+	RET
+
+// func And64(addr *uint64, v uint64) uint64
+TEXT ·And64(SB), NOSPLIT, $0-24
+	MOVQ	ptr+0(FP), AX
+	MOVQ	val+8(FP), BX
+	MOVQ 	(AX), CX
+	LOCK
+	ANDQ	BX, (AX)
+	MOVQ	CX, ret+16(FP)
+	RET

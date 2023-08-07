@@ -51,6 +51,36 @@ TEXT ·AddInt64(SB),NOSPLIT,$0
 TEXT ·AddUint64(SB),NOSPLIT,$0
 	JMP	runtime∕internal∕atomic·Xadd64(SB)
 
+TEXT ·AndInt32(SB),NOSPLIT,$0
+	JMP	runtime∕internal∕atomic·And32(SB)
+
+TEXT ·AndUint32(SB),NOSPLIT,$0
+	JMP	runtime∕internal∕atomic·And32(SB)
+
+TEXT ·AndUintptr(SB),NOSPLIT,$0
+	JMP	runtime∕internal∕atomic·And64(SB)
+
+TEXT ·AndInt64(SB),NOSPLIT,$0
+	JMP	runtime∕internal∕atomic·And64(SB)
+
+TEXT ·AndUint64(SB),NOSPLIT,$0
+	JMP	runtime∕internal∕atomic·And64(SB)
+
+TEXT ·OrInt32(SB),NOSPLIT,$0
+	JMP	runtime∕internal∕atomic·Or32(SB)
+
+TEXT ·OrUint32(SB),NOSPLIT,$0
+	JMP	runtime∕internal∕atomic·Or32(SB)
+
+TEXT ·OrUintptr(SB),NOSPLIT,$0
+	JMP	runtime∕internal∕atomic·Or64(SB)
+
+TEXT ·OrInt64(SB),NOSPLIT,$0
+	JMP	runtime∕internal∕atomic·Or64(SB)
+
+TEXT ·OrUint64(SB),NOSPLIT,$0
+	JMP	runtime∕internal∕atomic·Or64(SB)
+
 TEXT ·LoadInt32(SB),NOSPLIT,$0
 	JMP	runtime∕internal∕atomic·Load(SB)
 

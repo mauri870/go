@@ -283,3 +283,69 @@ TEXT ·And(SB), NOSPLIT, $0-8
 	LOCK
 	ANDL	BX, (AX)
 	RET
+
+// func And32(addr *uint32, v uint32) uint32
+TEXT ·And32(SB), NOSPLIT, $0-12
+	MOVL	ptr+0(FP), AX
+	MOVL	val+4(FP), BX
+	MOVL	(AX), CX
+	LOCK
+	ANDL	BX, (AX)
+	MOVL	CX, ret+8(FP)
+	RET
+
+// func Or32(addr *uint32, v uint32) uint32
+TEXT ·Or32(SB), NOSPLIT, $0-12
+	MOVL	ptr+0(FP), AX
+	MOVL	val+4(FP), BX
+	MOVL	(AX), CX
+	LOCK
+	ORL		BX, (AX)
+	MOVL	CX, ret+8(FP)
+	RET
+
+// func And64(addr *uint64, v uint64) uint64
+TEXT ·And64(SB), NOSPLIT, $0-20
+	// MOVL	ptr+0(FP), AX
+	// MOVL	val+4(FP), BX
+	// MOVL	(AX), CX
+	// LOCK
+	// ANDL	BX, (AX)
+	// MOVL	CX, ret+8(FP)
+	// RET
+	MOVL	ptr+0(FP), BP
+	// BX:AX = *addr
+	MOVL	0(BP), AX
+	MOVL	4(BP), BX
+	// DI:SI = v
+	MOVL	val_lo+4(FP), SI
+	MOVL	val_hi+8(FP), DI
+	LOCK
+	ANDL	SI, 0(BP)
+	ANDL	DI, 4(BP)
+	MOVL	AX, ret_lo+12(FP)
+	MOVL	BX, ret_hi+16(FP)
+	RET
+
+
+// func Or64(addr *uint64, v uint64) uint64
+TEXT ·Or64(SB), NOSPLIT, $0-20
+	// MOVL	ptr+0(FP), BP
+	// MOVL	0(BP), AX
+	// MOVL	4(BP), BX
+	// MOVL	AX, ret_lo+12(FP)
+	// MOVL	BX, ret_hi+16(FP)
+	// RET
+	MOVL	ptr+0(FP), BP
+	// BX:AX = *addr
+	MOVL	0(BP), AX
+	MOVL	4(BP), BX
+	// DI:SI = v
+	MOVL	val_lo+4(FP), SI
+	MOVL	val_hi+8(FP), DI
+	LOCK
+	ORL		SI, 0(BP)
+	ORL		DI, 4(BP)
+	MOVL	AX, ret_lo+12(FP)
+	MOVL	BX, ret_hi+16(FP)
+	RET
