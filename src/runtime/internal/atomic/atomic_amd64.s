@@ -226,40 +226,56 @@ TEXT ·And(SB), NOSPLIT, $0-12
 
 // func Or32(addr *uint32, v uint32) uint32
 TEXT ·Or32(SB), NOSPLIT, $0-20
-	MOVQ	ptr+0(FP), AX
-	MOVL	val+8(FP), BX
-	MOVL	(AX), CX
+	MOVQ	ptr+0(FP), BX
+	MOVL	val+8(FP), CX
+casloop:
+	MOVL 	CX, DX
+	MOVL	(BX), AX
+	ORL	AX, DX
 	LOCK
-	ORL	BX, (AX)
-	MOVL 	CX, ret+16(FP)
+	CMPXCHGL	DX, (BX)
+	JNZ casloop
+	MOVL 	AX, ret+16(FP)
 	RET
 
 // func And32(addr *uint32, v uint32) uint32
 TEXT ·And32(SB), NOSPLIT, $0-20
-	MOVQ	ptr+0(FP), AX
-	MOVL	val+8(FP), BX
-	MOVL 	(AX), CX
+	MOVQ	ptr+0(FP), BX
+	MOVL	val+8(FP), CX
+casloop:
+	MOVL 	CX, DX
+	MOVL	(BX), AX
+	ANDL	AX, DX
 	LOCK
-	ANDL	BX, (AX)
-	MOVL	CX, ret+16(FP)
+	CMPXCHGL	DX, (BX)
+	JNZ casloop
+	MOVL 	AX, ret+16(FP)
 	RET
 
 // func Or64(addr *uint64, v uint64) uint64
 TEXT ·Or64(SB), NOSPLIT, $0-24
-	MOVQ	ptr+0(FP), AX
-	MOVQ	val+8(FP), BX
-	MOVQ 	(AX), CX
+	MOVQ	ptr+0(FP), BX
+	MOVQ	val+8(FP), CX
+casloop:
+	MOVQ 	CX, DX
+	MOVQ	(BX), AX
+	ORQ	AX, DX
 	LOCK
-	ORQ	BX, (AX)
-	MOVQ	CX, ret+16(FP)
+	CMPXCHGQ	DX, (BX)
+	JNZ casloop
+	MOVQ 	AX, ret+16(FP)
 	RET
 
 // func And64(addr *uint64, v uint64) uint64
 TEXT ·And64(SB), NOSPLIT, $0-24
-	MOVQ	ptr+0(FP), AX
-	MOVQ	val+8(FP), BX
-	MOVQ 	(AX), CX
+	MOVQ	ptr+0(FP), BX
+	MOVQ	val+8(FP), CX
+casloop:
+	MOVQ 	CX, DX
+	MOVQ	(BX), AX
+	ANDQ	AX, DX
 	LOCK
-	ANDQ	BX, (AX)
-	MOVQ	CX, ret+16(FP)
+	CMPXCHGQ	DX, (BX)
+	JNZ casloop
+	MOVQ 	AX, ret+16(FP)
 	RET
