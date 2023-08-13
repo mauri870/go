@@ -204,6 +204,22 @@ func Or64(ptr *uint64, val uint64) uint64 {
 
 //go:nosplit
 //go:noinline
+func Anduintptr(ptr *uintptr, val uintptr) uintptr {
+	old := *ptr
+	*ptr = old & val
+	return old
+}
+
+//go:nosplit
+//go:noinline
+func Oruintptr(ptr *uintptr, val uintptr) uintptr {
+	old := *ptr
+	*ptr = old | val
+	return old
+}
+
+//go:nosplit
+//go:noinline
 func Cas64(ptr *uint64, old, new uint64) bool {
 	if *ptr == old {
 		*ptr = new
