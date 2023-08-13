@@ -279,3 +279,9 @@ casloop:
 	JNZ casloop
 	MOVQ 	AX, ret+16(FP)
 	RET
+
+TEXT ·Anduintptr(SB), NOSPLIT, $0-24
+	JMP	·And64(SB)
+
+TEXT ·Oruintptr(SB), NOSPLIT, $0-24
+	JMP	·Or64(SB)

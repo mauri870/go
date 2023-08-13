@@ -322,10 +322,11 @@ TEXT ·And64(SB), NOSPLIT, $0-20
 	MOVL	0(BP), AX
 	MOVL	4(BP), DX
 casloop:
-	MOVL	SI, BX
-	MOVL	DI, CX
-	ANDL	AX, BX
-	ANDL	DX, CX
+	// CX:BX = DX:AX (*addr) & DI:SI (mask)
+	MOVL	AX, BX
+	MOVL	DX, CX
+	ANDL	SI, BX
+	ANDL	DI, CX
 	LOCK
 	CMPXCHG8B	0(BP)
 	JNZ casloop
@@ -344,13 +345,20 @@ TEXT ·Or64(SB), NOSPLIT, $0-20
 	MOVL	0(BP), AX
 	MOVL	4(BP), DX
 casloop:
-	MOVL	SI, BX
-	MOVL	DI, CX
-	ORL	AX, BX
-	ORL	DX, CX
+	// CX:BX = DX:AX (*addr) | DI:SI (mask)
+	MOVL	AX, BX
+	MOVL	DX, CX
+	ORL	SI, BX
+	ORL	DI, CX
 	LOCK
 	CMPXCHG8B	0(BP)
 	JNZ casloop
 	MOVL	AX, ret_lo+12(FP)
 	MOVL	DX, ret_hi+16(FP)
 	RET
+
+TEXT ·Anduintptr(SB), NOSPLIT, $0-12
+	JMP	·And32(SB)
+
+TEXT ·Oruintptr(SB), NOSPLIT, $0-12
+	JMP	·Or32(SB)

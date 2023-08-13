@@ -96,6 +96,12 @@ func And64(ptr *uint64, val uint64) uint64
 //go:noescape
 func Or64(ptr *uint64, val uint64) uint64
 
+//go:noescape
+func Anduintptr(ptr *uintptr, val uintptr) uintptr
+
+//go:noescape
+func Oruintptr(ptr *uintptr, val uintptr) uintptr
+
 // NOTE: Do not add atomicxor8 (XOR is not idempotent).
 
 //go:noescape

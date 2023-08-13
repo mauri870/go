@@ -58,7 +58,7 @@ TEXT ·AndUint32(SB),NOSPLIT,$0
 	JMP	runtime∕internal∕atomic·And32(SB)
 
 TEXT ·AndUintptr(SB),NOSPLIT,$0
-	JMP	runtime∕internal∕atomic·And64(SB)
+	JMP	runtime∕internal∕atomic·Anduintptr(SB)
 
 TEXT ·AndInt64(SB),NOSPLIT,$0
 	JMP	runtime∕internal∕atomic·And64(SB)
@@ -73,7 +73,7 @@ TEXT ·OrUint32(SB),NOSPLIT,$0
 	JMP	runtime∕internal∕atomic·Or32(SB)
 
 TEXT ·OrUintptr(SB),NOSPLIT,$0
-	JMP	runtime∕internal∕atomic·Or64(SB)
+	JMP	runtime∕internal∕atomic·Oruintptr(SB)
 
 TEXT ·OrInt64(SB),NOSPLIT,$0
 	JMP	runtime∕internal∕atomic·Or64(SB)
