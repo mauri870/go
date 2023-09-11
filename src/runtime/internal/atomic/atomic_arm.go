@@ -245,6 +245,26 @@ func And64(addr *uint64, v uint64) uint64 {
 }
 
 //go:nosplit
+func OrUintptr(addr *uintptr, v uintptr) uint64 {
+	for {
+		old := *addr
+		if Cas64((*uint32)(unsafe.Pointer(addr)), old, old|v) {
+			return old
+		}
+	}
+}
+
+//go:nosplit
+func And64(addr *uint64, v uint64) uint64 {
+	for {
+		old := *addr
+		if Cas64(addr, old, old&v) {
+			return old
+		}
+	}
+}
+
+//go:nosplit
 func armcas(ptr *uint32, old, new uint32) bool
 
 //go:noescape
