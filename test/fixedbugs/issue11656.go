@@ -16,7 +16,7 @@
 // any unwind information for the artificial function, and will not be
 // able to unwind past that point.
 
-//go:build !windows && !wasm && !gccgo
-// +build !windows,!wasm,!gccgo
+//go:build !windows && !wasm && !wasm32 && !gccgo
+// +build !windows,!wasm,!wasm32,!gccgo
 
 package ignored

@@ -349,6 +349,20 @@ func NewConfig(arch string, types Types, ctxt *obj.Link, optimize, softfloat boo
 		c.noDuffDevice = true
 		c.useAvg = false
 		c.useHmul = false
+	case "wasm32":
+		c.lowerBlock = rewriteBlockWasm
+		c.lowerValue = rewriteValueWasm
+		c.registers = registersWasm[:]
+		c.gpRegMask = gpRegMaskWasm
+		c.fpRegMask = fpRegMaskWasm
+		c.fp32RegMask = fp32RegMaskWasm
+		c.fp64RegMask = fp64RegMaskWasm
+		c.FPReg = framepointerRegWasm
+		c.LinkReg = linkRegWasm
+		c.hasGReg = true
+		c.noDuffDevice = true
+		c.useAvg = false
+		c.useHmul = false
 	default:
 		ctxt.Diag("arch %s not implemented", arch)
 	}

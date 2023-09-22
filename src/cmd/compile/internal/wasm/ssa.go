@@ -141,6 +141,10 @@ func Init(arch *ssagen.ArchInfo) {
 	arch.SSAMarkMoves = ssaMarkMoves
 	arch.SSAGenValue = ssaGenValue
 	arch.SSAGenBlock = ssaGenBlock
+
+	// if buildcfg.GOARCH == "wasm32" {
+	// 	arch.LinkArch = &wasm.Linkwasm32
+	// }
 }
 
 func zeroRange(pp *objw.Progs, p *obj.Prog, off, cnt int64, state *uint32) *obj.Prog {

@@ -446,6 +446,7 @@ func GetArchEnv() (key, val string) {
 	case "ppc64", "ppc64le":
 		return "GOPPC64", GOPPC64
 	case "wasm":
+	case "wasm32":
 		return "GOWASM", GOWASM
 	}
 	return "", ""

@@ -87,6 +87,7 @@ var arches = map[string]func(){
 	"riscv64": genRISCV64,
 	"s390x":   genS390X,
 	"wasm":    genWasm,
+	"wasm32":  genWasm,
 }
 var beLe = map[string]bool{"mips64x": true, "mipsx": true, "ppc64x": true}
 

@@ -79,7 +79,7 @@ func Set(GOARCH string, shared bool) *Arch {
 		return archRISCV64(shared)
 	case "s390x":
 		return archS390x()
-	case "wasm":
+	case "wasm", "wasm32":
 		return archWasm()
 	}
 	return nil

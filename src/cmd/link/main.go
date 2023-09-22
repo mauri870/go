@@ -66,7 +66,7 @@ func main() {
 		arch, theArch = riscv64.Init()
 	case "s390x":
 		arch, theArch = s390x.Init()
-	case "wasm":
+	case "wasm", "wasm32":
 		arch, theArch = wasm.Init()
 	}
 	ld.Main(arch, theArch)

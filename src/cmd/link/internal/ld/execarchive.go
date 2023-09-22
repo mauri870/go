@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//go:build !wasm && !windows
-// +build !wasm,!windows
+//go:build !wasm && !wasm32 && !windows
+// +build !wasm,!wasm32,!windows
 
 package ld
 

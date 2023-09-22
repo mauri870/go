@@ -14,7 +14,7 @@ func text_64(text []byte, sa []int64) {
 }
 
 func sais_8_64(text []byte, textMax int, sa, tmp []int64) {
-	if len(sa) != len(text) || len(tmp) < int(textMax) {
+	if len(sa) != len(text) || len(tmp) < textMax {
 		panic("suffixarray: misuse of sais_8_64")
 	}
 
@@ -76,7 +76,7 @@ func sais_8_64(text []byte, textMax int, sa, tmp []int64) {
 }
 
 func sais_32(text []int32, textMax int, sa, tmp []int32) {
-	if len(sa) != len(text) || len(tmp) < int(textMax) {
+	if len(sa) != len(text) || len(tmp) < textMax {
 		panic("suffixarray: misuse of sais_32")
 	}
 
@@ -138,7 +138,7 @@ func sais_32(text []int32, textMax int, sa, tmp []int32) {
 }
 
 func sais_64(text []int64, textMax int, sa, tmp []int64) {
-	if len(sa) != len(text) || len(tmp) < int(textMax) {
+	if len(sa) != len(text) || len(tmp) < textMax {
 		panic("suffixarray: misuse of sais_64")
 	}
 

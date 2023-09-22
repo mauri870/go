@@ -5,7 +5,7 @@
 // license that can be found in the LICENSE file.
 
 // terribly slow on wasm
-// +build !wasm
+// +build !wasm !wasm32
 
 package main
 

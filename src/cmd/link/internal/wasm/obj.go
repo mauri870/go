@@ -7,6 +7,7 @@ package wasm
 import (
 	"cmd/internal/sys"
 	"cmd/link/internal/ld"
+	"internal/buildcfg"
 )
 
 func Init() (*sys.Arch, ld.Arch) {
@@ -22,7 +23,12 @@ func Init() (*sys.Arch, ld.Arch) {
 		Gentext:       gentext,
 	}
 
-	return sys.ArchWasm, theArch
+	arch := sys.ArchWasm
+	if buildcfg.GOARCH == "wasm32" {
+		arch = sys.ArchWasm32
+	}
+
+	return arch, theArch
 }
 
 func archinit(ctxt *ld.Link) {

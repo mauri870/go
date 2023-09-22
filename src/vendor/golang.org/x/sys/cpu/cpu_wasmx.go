@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//go:build wasm
-// +build wasm
+//go:build wasm || wasm32
+// +build wasm wasm32
 
 package cpu
 

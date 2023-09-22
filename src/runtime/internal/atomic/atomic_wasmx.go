@@ -5,6 +5,8 @@
 // TODO(neelance): implement with actual atomic operations as soon as threads are available
 // See https://github.com/WebAssembly/design/issues/1073
 
+//go:build wasm || wasm32
+
 // Export some functions via linkname to assembly in sync/atomic.
 //
 //go:linkname Load
