@@ -1737,6 +1737,7 @@ var cgoEnabled = map[string]bool{
 	"windows/amd64":   true,
 	"windows/arm":     false,
 	"windows/arm64":   true,
+	"cosmo/amd64":     true,
 }
 
 // List of platforms that are marked as broken ports.
