@@ -2582,6 +2582,10 @@ func prefixof(ctxt *obj.Link, a *obj.Addr) int {
 				objabi.Hnetbsd,
 				objabi.Hopenbsd,
 				objabi.Hsolaris,
+				// TODO(mauri870): FS is not enough
+				// Quoting #51900
+				//  	If you want TLS on all operating systems then you need to devote both %fs and %gs
+				// 		since the latter is dynamically rewritten on Windows and Apple platforms.
 				objabi.Hcosmo:
 				return 0x64 // FS
 
