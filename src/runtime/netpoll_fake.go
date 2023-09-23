@@ -5,7 +5,8 @@
 // Fake network poller for js/wasm.
 // Should never be used, because js/wasm network connections do not honor "SetNonblock".
 
-//go:build js && wasm
+// TODO(mauri870): cosmo needs its own implementation instead of this fake one
+//go:build (js && wasm) || cosmo
 
 package runtime
 

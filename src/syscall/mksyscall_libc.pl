@@ -26,6 +26,7 @@ my $tags = "";  # build tags
 my $newtags = ""; # new style build tags
 my $aix = 0;
 my $solaris = 0;
+my $cosmo = 0;
 
 binmode STDOUT;
 
@@ -44,6 +45,10 @@ if($ARGV[0] eq "-solaris") {
 	$solaris = 1;
 	shift;
 }
+if($ARGV[0] eq "-cosmo") {
+	$cosmo = 1;
+	shift;
+}
 if($ARGV[0] eq "-tags") {
 	shift;
 	$tags = $ARGV[0];
@@ -52,7 +57,7 @@ if($ARGV[0] eq "-tags") {
 
 
 if($ARGV[0] =~ /^-/) {
-	print STDERR "usage: mksyscall_libc.pl [-b32 | -l32] [-aix | -solaris] [-tags x,y] [file ...]\n";
+	print STDERR "usage: mksyscall_libc.pl [-b32 | -l32] [-aix | -solaris | -cosmo] [-tags x,y] [file ...]\n";
 	exit 1;
 }
 
@@ -124,6 +129,13 @@ while(<>) {
 
 	}
 	if($solaris) {
+		if($modname eq "") {
+			$modname = "libc";
+		}
+		$modname .= ".so";
+
+	}
+	if($cosmo) {
 		if($modname eq "") {
 			$modname = "libc";
 		}

@@ -384,6 +384,14 @@ windows_*)
 	echo 'run "go generate" instead' 1>&2
 	exit 1
 	;;
+cosmo_amd64)
+	GOOSARCH_in="syscall_cosmo_libc.go syscall_cosmo_$GOARCH.go"
+	mkerrors="$mkerrors -m64"
+	zsysctl="zsysctl_cosmo.go"
+	mksyscall="./mksyscall_libc.pl -cosmo"
+	mksysnum="curl -s 'http://cvsweb.netbsd.org/bsdweb.cgi/~checkout~/src/sys/kern/syscalls.master' | ./mksysnum_netbsd.pl"
+	mktypes="GOARCH=$GOARCH go tool cgo -godefs"
+	;;
 *)
 	echo 'unrecognized $GOOS_$GOARCH: ' "$GOOSARCH" 1>&2
 	exit 1
