@@ -306,9 +306,8 @@ func futexsleep(addr *uint32, val uint32, ns int64) {
 		return
 	}
 
-	// TODO(mauri870): ts.setNsec undefined (type timespec has no field or method setNsec)
 	var ts timespec
-	// ts.setNsec(ns)
+	ts.setNsec(ns)
 	futex(unsafe.Pointer(addr), _FUTEX_WAIT_PRIVATE, val, unsafe.Pointer(&ts), nil, 0)
 }
 
