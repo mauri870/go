@@ -99,6 +99,7 @@ var okgoos = []string{
 	"plan9",
 	"windows",
 	"aix",
+	"cosmo",
 }
 
 // find reports the first index of p in l[0:n], or else -1.
@@ -1018,6 +1019,7 @@ var unixOS = map[string]bool{
 	"netbsd":    true,
 	"openbsd":   true,
 	"solaris":   true,
+	"cosmo":     true,
 }
 
 // matchtag reports whether the tag matches this build.

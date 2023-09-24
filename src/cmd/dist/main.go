@@ -78,6 +78,8 @@ func main() {
 		}
 	case "windows":
 		exe = ".exe"
+	case "cosmo":
+		exe = ".com"
 	}
 
 	sysinit()
