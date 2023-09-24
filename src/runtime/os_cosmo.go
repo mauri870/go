@@ -306,9 +306,17 @@ func futexsleep(addr *uint32, val uint32, ns int64) {
 		return
 	}
 
-	var ts timespec
-	ts.setNsec(ns)
-	futex(unsafe.Pointer(addr), _FUTEX_WAIT_PRIVATE, val, unsafe.Pointer(&ts), nil, 0)
+	// TODO(mauri870) Next line causes an error:
+	// 		../../src/runtime/mgc.go:1688:11: write barrier prohibited by caller; clearpools
+	// 		./../src/runtime/mgc.go:695:12: called by gcStart
+	// 		./../src/runtime/malloc.go:1240:11: called by mallocgc
+	// 		./../src/runtime/malloc.go:1322:17: called by newobject
+	// 		./../src/runtime/os_cosmo.go:309:6: called by futexsleep
+	// 		./../src/runtime/lock_futex.go:107:13: called by lock2
+	// 		./../src/runtime/mgcmark.go:679:6: called by gcFlushBgCredit
+	// var ts timespec
+	// ts.setNsec(ns)
+	// futex(unsafe.Pointer(addr), _FUTEX_WAIT_PRIVATE, val, unsafe.Pointer(&ts), nil, 0)
 }
 
 // If any procs are sleeping on addr, wake up at most cnt.

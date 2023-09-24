@@ -109,7 +109,7 @@ type sigset struct {
 	X__bits [2]uint64
 }
 
-// TODO(mauri870): confirm all these structures, they were copied as-is from aix
+// TODO(mauri870): confirm all these structures, they were copied as-is from linux
 var sigset_all = sigset{[2]uint64{^uint64(0), ^uint64(0)}}
 
 type timespec struct {
