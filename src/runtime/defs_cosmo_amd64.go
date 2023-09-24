@@ -85,36 +85,127 @@ const (
 type sigset struct {
 	X__bits [2]uint64
 }
+
+// TODO(mauri870): confirm all these structures, they were copied as-is from aix
+var sigset_all = sigset{[2]uint64{^uint64(0), ^uint64(0)}}
+
 type siginfo struct {
-	Signo		int32
-	Errno		int32
-	Code		int32
-	Pad_cgo_0	[4]byte
-	Anon0		[112]byte
-}
-type sigactiont struct {
-	Handler		*[0]byte
-	Flags		uint64
-	Restorer	*[0]byte
-	Mask		sigset
-}
-type stackt struct {
-	Sp	*byte
-	Flags	int32
-	Size	uint64
+	si_signo   int32
+	si_errno   int32
+	si_code    int32
+	__pad      [3]int32
+	__ignoreme [112]byte
 }
 
 type timespec struct {
-	Sec	int64
-	Nsec	int64
-}
-type timeval struct {
-	Sec	int64
-	Usec	int64
-}
-type itimerval struct {
-	Interval	timeval
-	Value		timeval
+	tv_sec  int64
+	tv_nsec int64
 }
 
-type sigcontext struct{}
+//go:nosplit
+func (ts *timespec) setNsec(ns int64) {
+	ts.tv_sec = ns / 1e9
+	ts.tv_nsec = ns % 1e9
+}
+
+type timeval struct {
+	tv_sec    int64
+	tv_usec   int32
+	pad_cgo_0 [4]byte
+}
+
+func (tv *timeval) set_usec(x int32) {
+	tv.tv_usec = x
+}
+
+type itimerval struct {
+	it_interval timeval
+	it_value    timeval
+}
+
+type stackt struct {
+	ss_sp     uintptr
+	ss_size   uintptr
+	ss_flags  int32
+	__pad     [4]int32
+	pas_cgo_0 [4]byte
+}
+
+type sigactiont struct {
+	sa_handler uintptr // a union of two pointer
+	sa_mask    sigset
+	sa_flags   int32
+	pad_cgo_0  [4]byte
+}
+
+type fpxreg struct {
+	significand [4]uint16
+	exponent    uint16
+	padding     [3]uint16
+}
+
+type xmmreg struct {
+	// TODO(mauri870): on cosmos this is uint64_t u64[2];
+	element [4]uint32
+}
+
+type fpstate struct {
+	cwd       uint16
+	swd       uint16
+	ftw       uint16
+	fop       uint16
+	rip       uint64
+	rdp       uint64
+	mxcsr     uint32
+	mxcr_mask uint32
+	_st       [8]fpxreg
+	_xmm      [16]xmmreg
+	padding   [24]uint32
+}
+
+type mcontext struct {
+	gregs       [23]uint64
+	fpregs      *fpstate
+	__reserved1 [8]uint64
+}
+
+type ucontext struct {
+	uc_sigmask  sigset
+	uc_mcontext mcontext
+	uc_link     *ucontext
+	uc_stack    stackt
+	uc_flags    int32
+	__spare__   [4]int32
+	pad_cgo_0   [12]byte
+}
+
+type sigcontext struct {
+	r8          uint64
+	r9          uint64
+	r10         uint64
+	r11         uint64
+	r12         uint64
+	r13         uint64
+	r14         uint64
+	r15         uint64
+	rdi         uint64
+	rsi         uint64
+	rbp         uint64
+	rbx         uint64
+	rdx         uint64
+	rax         uint64
+	rcx         uint64
+	rsp         uint64
+	rip         uint64
+	eflags      uint64
+	cs          uint16
+	gs          uint16
+	fs          uint16
+	__pad0      uint16
+	err         uint64
+	trapno      uint64
+	oldmask     uint64
+	cr2         uint64
+	fpstate     *fpstate
+	__reserved1 [8]uint64
+}
