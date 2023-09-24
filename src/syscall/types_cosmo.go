@@ -10,6 +10,9 @@ Input to cgo -godefs.  See also mkerrors.sh and mkall.sh
 
 package syscall
 
+// TODO(mauri870): this is almost the same as defs_cosmo.go.
+// What needs to be placed on this file and what needs to be placed in defs_cosmo.go?
+
 /*
 #include <cosmopolitan.h>
 */

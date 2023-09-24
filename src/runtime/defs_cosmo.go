@@ -5,9 +5,31 @@
 //go:build ignore
 
 /*
-Input to cgo.
+Input to cgo -godefs.
 
 GOARCH=amd64 go tool cgo -godefs defs_cosmo.go >defs_cosmo_amd64.go
+
+This is only a helper to create defs_cosmo_amd64.go
+Go runtime functions require the "linux" name of fields (ss_sp, si_addr, etc)
+However, auto generated cosmo structures have Go style names.
+
+For example:
+
+// C def
+struct itimerval {
+  struct timeval it_interval;
+  struct timeval it_value;
+};
+
+// Auto generated Go code
+type itimerval struct {
+	Interval	timeval
+	Value		timeval
+}
+
+TODO(mauri870): create a script to automatise defs_cosmo creation.
+TODO(mauri870): read if "modifications made" in defs_aix is necessary,
+they used this same trick.
 */
 
 package runtime
@@ -102,9 +124,9 @@ const (
 	SEGV_MAPERR = C.SEGV_MAPERR
 	SEGV_ACCERR = C.SEGV_ACCERR
 
-	ITIMER_REAL    = C.ITIMER_REAL
-	ITIMER_VIRTUAL = C.ITIMER_VIRTUAL
-	ITIMER_PROF    = C.ITIMER_PROF
+	_ITIMER_REAL    = C.ITIMER_REAL
+	_ITIMER_VIRTUAL = C.ITIMER_VIRTUAL
+	_ITIMER_PROF    = C.ITIMER_PROF
 
 	_NSIG = C.NSIG
 
