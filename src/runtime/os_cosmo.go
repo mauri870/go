@@ -216,6 +216,11 @@ func sigaddset(mask *sigset, i int) {
 	mask.X__bits[(i-1)/64] |= 1 << ((uint64(i) - 1) & 63)
 }
 
+//go:nosplit
+func sigfillset(mask *uint64) {
+	*mask = ^uint64(0)
+}
+
 func sigdelset(mask *sigset, i int) {
 	mask.X__bits[(i-1)/64] &^= 1 << ((uint64(i) - 1) & 63)
 }
