@@ -601,6 +601,8 @@ func mustLinkExternal(goos, goarch string, cgoEnabled bool) bool {
 			// set up by the dynamic linker, so internal cgo linking
 			// doesn't work. Test case is "go test runtime/cgo".
 			return true
+		case "cosmo":
+			return true
 		}
 	}
 
