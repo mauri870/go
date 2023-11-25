@@ -304,8 +304,8 @@ TEXT	sync∕atomic·AddUintptr(SB), NOSPLIT, $0-24
 	JMP	sync∕atomic·AddInt64(SB)
 
 
-// For OpenBSD, see race_openbsd_amd64.s for implementation.
-#ifndef GOOS_linux
+// OpenBSD still uses tsan v2, see race_openbsd_amd64.s for implementation.
+#ifndef GOOS_openbsd
 // And
 TEXT	sync∕atomic·AndInt32(SB), NOSPLIT|NOFRAME, $0-20
 	GO_ARGS
