@@ -117,7 +117,7 @@ var unaryDst = map[obj.As]bool{
 }
 
 var Linkwasm = obj.LinkArch{
-	Arch:       sys.ArchWasm,
+	Arch:       sys.ArchWasm32,
 	Init:       instinit,
 	Preprocess: preprocess,
 	Assemble:   assemble,
