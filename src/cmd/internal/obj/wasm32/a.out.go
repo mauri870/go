@@ -18,7 +18,7 @@ const (
  *	wasm
  */
 const (
-	AGet = obj.ABaseWasm + obj.A_ARCHSPECIFIC + iota
+	AGet = obj.ABaseWasm32 + obj.A_ARCHSPECIFIC + iota
 	ASet
 	ATee
 	ANot // alias for I32Eqz
@@ -266,7 +266,7 @@ const (
 
 const (
 	// globals
-	REG_SP = obj.RBaseWasm + iota // SP is currently 32-bit, until 64-bit memory operations are available
+	REG_SP = obj.RBaseWasm32 + iota // SP is currently 32-bit, until 64-bit memory operations are available
 	REG_CTXT
 	REG_g
 	// RET* are used by runtime.return0 and runtime.reflectcall. These functions pass return values in registers.
