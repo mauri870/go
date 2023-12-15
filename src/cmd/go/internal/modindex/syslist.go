@@ -75,4 +75,5 @@ var knownArch = map[string]bool{
 	"sparc":       true,
 	"sparc64":     true,
 	"wasm":        true,
+	"wasm32":      true,
 }

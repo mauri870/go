@@ -96,6 +96,7 @@ var (
 	asmArchRISCV64  = asmArch{name: "riscv64", bigEndian: false, stack: "SP", lr: true, retRegs: []string{"X10", "F10"}}
 	asmArchS390X    = asmArch{name: "s390x", bigEndian: true, stack: "R15", lr: true}
 	asmArchWasm     = asmArch{name: "wasm", bigEndian: false, stack: "SP", lr: false}
+	asmArchWasm32   = asmArch{name: "wasm32", bigEndian: false, stack: "SP", lr: false}
 
 	arches = []*asmArch{
 		&asmArch386,
@@ -111,6 +112,7 @@ var (
 		&asmArchRISCV64,
 		&asmArchS390X,
 		&asmArchWasm,
+		&asmArchWasm32,
 	}
 )
 
@@ -344,7 +346,7 @@ Files:
 				continue
 			}
 
-			if arch == "wasm" && strings.Contains(line, "CallImport") {
+			if (arch == "wasm" || arch == "wasm32") && strings.Contains(line, "CallImport") {
 				// CallImport is a call out to magic that can write the result.
 				haveRetArg = true
 			}

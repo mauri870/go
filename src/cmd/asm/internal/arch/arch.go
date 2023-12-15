@@ -15,6 +15,7 @@ import (
 	"cmd/internal/obj/riscv"
 	"cmd/internal/obj/s390x"
 	"cmd/internal/obj/wasm"
+	"cmd/internal/obj/wasm32"
 	"cmd/internal/obj/x86"
 	"fmt"
 	"strings"
@@ -81,6 +82,8 @@ func Set(GOARCH string, shared bool) *Arch {
 		return archS390x()
 	case "wasm":
 		return archWasm()
+	case "wasm32":
+		return archWasm32()
 	}
 	return nil
 }
@@ -99,6 +102,11 @@ func jumpRISCV(word string) bool {
 }
 
 func jumpWasm(word string) bool {
+	return word == "JMP" || word == "CALL" || word == "Call" || word == "Br" || word == "BrIf"
+}
+
+// TODO(mauri870): merge this with jumpWasm?
+func jumpWasm32(word string) bool {
 	return word == "JMP" || word == "CALL" || word == "Call" || word == "Br" || word == "BrIf"
 }
 
@@ -756,5 +764,26 @@ func archWasm() *Arch {
 		RegisterPrefix: nil,
 		RegisterNumber: nilRegisterNumber,
 		IsJump:         jumpWasm,
+	}
+}
+
+func archWasm32() *Arch {
+	instructions := make(map[string]obj.As)
+	for i, s := range obj.Anames {
+		instructions[s] = obj.As(i)
+	}
+	for i, s := range wasm32.Anames {
+		if obj.As(i) >= obj.A_ARCHSPECIFIC {
+			instructions[s] = obj.As(i) + obj.ABaseWasm
+		}
+	}
+
+	return &Arch{
+		LinkArch:       &wasm32.Linkwasm,
+		Instructions:   instructions,
+		Register:       wasm32.Register,
+		RegisterPrefix: nil,
+		RegisterNumber: nilRegisterNumber,
+		IsJump:         jumpWasm32,
 	}
 }
