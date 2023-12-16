@@ -317,7 +317,7 @@ func ssaGenValue(s *ssagen.State, v *ssa.Value) {
 		}
 		ssaGenValueOnStack(s, v, true)
 		if s.OnWasmStackSkipped != 0 {
-			panic("wasm: bad stack")
+			panic("wasm32: bad stack")
 		}
 		setReg(s, v.Reg())
 	}
