@@ -774,7 +774,7 @@ func archWasm32() *Arch {
 	}
 	for i, s := range wasm32.Anames {
 		if obj.As(i) >= obj.A_ARCHSPECIFIC {
-			instructions[s] = obj.As(i) + obj.ABaseWasm
+			instructions[s] = obj.As(i) + obj.ABaseWasm32
 		}
 	}
 
