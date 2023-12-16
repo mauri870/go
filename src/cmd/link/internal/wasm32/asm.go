@@ -7,7 +7,7 @@ package wasm32
 import (
 	"bytes"
 	"cmd/internal/obj"
-	"cmd/internal/obj/wasm"
+	"cmd/internal/obj/wasm32"
 	"cmd/internal/objabi"
 	"cmd/link/internal/ld"
 	"cmd/link/internal/loader"
@@ -358,7 +358,7 @@ func writeImportSec(ctxt *ld.Link, hostImports []*wasmFunc) {
 		if fn.Module != "" {
 			writeName(ctxt.Out, fn.Module)
 		} else {
-			writeName(ctxt.Out, wasm.GojsModule) // provided by the import object in wasm_exec.js
+			writeName(ctxt.Out, wasm32.GojsModule) // provided by the import object in wasm_exec.js
 		}
 		writeName(ctxt.Out, fn.Name)
 		ctxt.Out.WriteByte(0x00) // func import

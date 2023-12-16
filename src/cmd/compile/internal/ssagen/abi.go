@@ -19,6 +19,7 @@ import (
 	"cmd/compile/internal/types"
 	"cmd/internal/obj"
 	"cmd/internal/obj/wasm"
+	"cmd/internal/obj/wasm32"
 )
 
 // SymABIs records information provided by the assembler about symbol
@@ -409,7 +410,7 @@ func setupWasmABI(f *ir.Func) {
 		Module: f.WasmImport.Module,
 		Name:   f.WasmImport.Name,
 	}
-	if wi.Module == wasm.GojsModule {
+	if wi.Module == wasm.GojsModule || wi.Module == wasm32.GojsModule {
 		// Functions that are imported from the "gojs" module use a special
 		// ABI that just accepts the stack pointer.
 		// Example:
