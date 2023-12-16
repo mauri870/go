@@ -129,7 +129,7 @@ func (t *Target) IsS390X() bool {
 }
 
 func (t *Target) IsWasm() bool {
-	return t.Arch.Family == sys.Wasm
+	return t.Arch.Family == sys.Wasm || t.Arch.Family == sys.Wasm32
 }
 
 //
