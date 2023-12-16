@@ -84,7 +84,7 @@ var registerNames []string
 
 func init() {
 	obj.RegisterRegister(MINREG, MAXREG, rconv)
-	obj.RegisterOpcode(obj.ABaseWasm, Anames)
+	obj.RegisterOpcode(obj.ABaseWasm32, Anames)
 
 	registerNames = make([]string, MAXREG-MINREG)
 	for name, reg := range Register {
