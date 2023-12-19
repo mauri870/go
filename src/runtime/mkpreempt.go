@@ -87,6 +87,7 @@ var arches = map[string]func(){
 	"riscv64": genRISCV64,
 	"s390x":   genS390X,
 	"wasm":    genWasm,
+	"wasm32":  genWasm32,
 }
 var beLe = map[string]bool{"mips64x": true, "mipsx": true, "ppc64x": true}
 
@@ -621,6 +622,11 @@ func genS390X() {
 
 func genWasm() {
 	p("// No async preemption on wasm")
+	p("UNDEF")
+}
+
+func genWasm32() {
+	p("// No async preemption on wasm32")
 	p("UNDEF")
 }
 
