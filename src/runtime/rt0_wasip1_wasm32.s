@@ -11,6 +11,6 @@ TEXT _rt0_wasm32_wasip1(SB),NOSPLIT,$0
 	I32Const $0 // entry PC_B
 	Call runtime·rt0_go(SB)
 	Drop
-	Call wasm32_pc_f_loop(SB)
+	Call wasm_pc_f_loop(SB)
 
 	Return
