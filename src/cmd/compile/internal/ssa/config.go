@@ -352,8 +352,8 @@ func NewConfig(arch string, types Types, ctxt *obj.Link, optimize, softfloat boo
 		c.useAvg = false
 		c.useHmul = false
 	case "wasm32":
-		c.PtrSize = 8
-		c.RegSize = 8
+		c.PtrSize = 4
+		c.RegSize = 4
 		c.lowerBlock = rewriteBlockWasm32
 		c.lowerValue = rewriteValueWasm32
 		c.registers = registersWasm32[:]

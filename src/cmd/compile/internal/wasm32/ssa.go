@@ -133,7 +133,7 @@ import (
 func Init(arch *ssagen.ArchInfo) {
 	arch.LinkArch = &wasm32.Linkwasm
 	arch.REGSP = wasm32.REG_SP
-	arch.MAXWIDTH = 1 << 50
+	arch.MAXWIDTH = (1 << 32) - 1
 
 	arch.ZeroRange = zeroRange
 	arch.Ginsnop = ginsnop
