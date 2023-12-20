@@ -19,10 +19,10 @@ import (
 
 /*
 
-   Wasm32 implementation
+   Wasm implementation
    -------------------
 
-   Wasm32 is a strange Go port because the machine isn't
+   Wasm is a strange Go port because the machine isn't
    a register-based machine, threads are different, code paths
    are different, etc. We outline those differences here.
 
@@ -31,10 +31,10 @@ import (
 
    PCs:
 
-   Wasm32 doesn't have PCs in the normal sense that you can jump
+   Wasm doesn't have PCs in the normal sense that you can jump
    to or call to. Instead, we simulate these PCs using our own construct.
 
-   A PC in the Wasm32 implementation is the combination of a function
+   A PC in the Wasm implementation is the combination of a function
    ID and a block ID within that function. The function ID is an index
    into a function table which transfers control to the start of the
    function in question, and the block ID is a sequential integer
@@ -42,7 +42,7 @@ import (
 
    Every function starts with a branch table which transfers control
    to the place in the function indicated by the block ID. The block
-   ID is provided to the function as the sole Wasm32 argument.
+   ID is provided to the function as the sole Wasm argument.
 
    Block IDs do not encode every possible PC. They only encode places
    in the function where it might be suspended. Typically these places
@@ -53,11 +53,11 @@ import (
 
    Threads:
 
-   Wasm32 doesn't (yet) have threads. We have to simulate threads by
+   Wasm doesn't (yet) have threads. We have to simulate threads by
    keeping goroutine stacks in linear memory and unwinding
-   the Wasm32 stack each time we want to switch goroutines.
+   the Wasm stack each time we want to switch goroutines.
 
-   To support unwinding a stack, each function call returns on the Wasm32
+   To support unwinding a stack, each function call returns on the Wasm
    stack a boolean that tells the function whether it should return
    immediately or not. When returning immediately, a return address
    is left on the top of the Go stack indicating where the goroutine
@@ -77,22 +77,22 @@ import (
    Calling convention:
 
    All Go arguments and return values are passed on the Go stack, not
-   the wasm32 stack. In addition, return addresses are pushed on the
+   the wasm stack. In addition, return addresses are pushed on the
    Go stack at every call point. Return addresses are not used during
    normal execution, they are used only when resuming goroutines.
    (So they are not really a "return address", they are a "resume address".)
 
-   All Go functions have the Wasm32 type (i32)->i32. The argument
+   All Go functions have the Wasm type (i32)->i32. The argument
    is the block ID and the return value is the exit immediately flag.
 
    Callsite:
     - write arguments to the Go stack (starting at SP+0)
     - push return address to Go stack (8 bytes)
     - write local SP to global SP
-    - push 0 (type i32) to Wasm32 stack
+    - push 0 (type i32) to Wasm stack
     - issue Call
     - restore local SP from global SP
-    - pop int32 from top of Wasm32 stack. If nonzero, exit function immediately.
+    - pop int32 from top of Wasm stack. If nonzero, exit function immediately.
     - use results from Go stack (starting at SP+sizeof(args))
        - note that the callee will have popped the return address
 
@@ -108,22 +108,22 @@ import (
    Normal epilogue:
     - pop frame from Go stack
     - pop return address from Go stack
-    - push 0 (type i32) on the Wasm32 stack
+    - push 0 (type i32) on the Wasm stack
     - return
    Exit immediately epilogue:
-    - push 1 (type i32) on the Wasm32 stack
+    - push 1 (type i32) on the Wasm stack
     - return
     - note that the return address and stack frame are left on the Go stack
 
-   The main loop that executes goroutines is wasm32_pc_f_loop, in
+   The main loop that executes goroutines is wasm_pc_f_loop, in
    runtime/rt0_js_wasm32.s. It grabs the saved return address from
    the top of the Go stack (actually SP-8?), splits it up into F
-   and B parts, then calls F with its Wasm32 argument set to B.
+   and B parts, then calls F with its Wasm argument set to B.
 
    Note that when resuming a goroutine, only the most recent function
-   invocation of that goroutine appears on the Wasm32 stack. When that
-   Wasm32 function returns normally, the next most recent frame will
-   then be started up by wasm32_pc_f_loop.
+   invocation of that goroutine appears on the Wasm stack. When that
+   Wasm function returns normally, the next most recent frame will
+   then be started up by wasm_pc_f_loop.
 
    Global 0 is SP (stack pointer)
    Global 1 is CTXT (closure pointer)
@@ -223,7 +223,7 @@ func ssaGenBlock(s *ssagen.State, b, next *ssa.Block) {
 	s.Prog(wasm32.ARESUMEPOINT)
 
 	if s.OnWasmStackSkipped != 0 {
-		panic("wasm32: bad stack")
+		panic("wasm: bad stack")
 	}
 }
 
@@ -288,11 +288,16 @@ func ssaGenValue(s *ssagen.State, v *ssa.Value) {
 		p := s.Prog(wasm32.ACall)
 		// AuxInt encodes how many buffer entries we need.
 		p.To = obj.Addr{Type: obj.TYPE_MEM, Name: obj.NAME_EXTERN, Sym: ir.Syms.GCWriteBarrier[v.AuxInt-1]}
-		setReg(s, v.Reg0()) // move result from wasm32 stack to register local
+		setReg(s, v.Reg0()) // move result from wasm stack to register local
 
 	case ssa.OpWasm32I64Store8, ssa.OpWasm32I64Store16, ssa.OpWasm32I64Store32, ssa.OpWasm32I64Store, ssa.OpWasm32F32Store, ssa.OpWasm32F64Store:
 		getValue32(s, v.Args[0])
 		getValue64(s, v.Args[1])
+		p := s.Prog(v.Op.Asm())
+		p.To = obj.Addr{Type: obj.TYPE_CONST, Offset: v.AuxInt}
+
+	case ssa.OpWasm32I32Store8, ssa.OpWasm32I32Store16, ssa.OpWasm32I32Store:
+		getValue32(s, v.Args[0])
 		p := s.Prog(v.Op.Asm())
 		p.To = obj.Addr{Type: obj.TYPE_CONST, Offset: v.AuxInt}
 
@@ -317,7 +322,7 @@ func ssaGenValue(s *ssagen.State, v *ssa.Value) {
 		}
 		ssaGenValueOnStack(s, v, true)
 		if s.OnWasmStackSkipped != 0 {
-			panic("wasm32: bad stack")
+			panic("wasm: bad stack")
 		}
 		setReg(s, v.Reg())
 	}
@@ -363,7 +368,7 @@ func ssaGenValueOnStack(s *ssagen.State, v *ssa.Value, extend bool) {
 			p.From.Reg = v.Args[0].Reg()
 			ssagen.AddAux(&p.From, v)
 		default:
-			panic("wasm32: bad LoweredAddr")
+			panic("wasm: bad LoweredAddr")
 		}
 
 	case ssa.OpWasm32LoweredConvert:
@@ -380,8 +385,16 @@ func ssaGenValueOnStack(s *ssagen.State, v *ssa.Value, extend bool) {
 		i64Const(s, v.AuxInt)
 		s.Prog(v.Op.Asm())
 
+	case ssa.OpWasm32I32AddConst:
+		getValue32(s, v.Args[0])
+		i32Const(s, int32(v.AuxInt))
+		s.Prog(v.Op.Asm())
+
 	case ssa.OpWasm32I64Const:
 		i64Const(s, v.AuxInt)
+
+	case ssa.OpWasm32I32Const:
+		i32Const(s, int32(v.AuxInt))
 
 	case ssa.OpWasm32F32Const:
 		f32Const(s, v.AuxFloat())
@@ -389,7 +402,12 @@ func ssaGenValueOnStack(s *ssagen.State, v *ssa.Value, extend bool) {
 	case ssa.OpWasm32F64Const:
 		f64Const(s, v.AuxFloat())
 
-	case ssa.OpWasm32I64Load8U, ssa.OpWasm32I64Load8S, ssa.OpWasm32I64Load16U, ssa.OpWasm32I64Load16S, ssa.OpWasm32I64Load32U, ssa.OpWasm32I64Load32S, ssa.OpWasm32I64Load, ssa.OpWasm32F32Load, ssa.OpWasm32F64Load:
+	case
+		ssa.OpWasm32I32Load8U, ssa.OpWasm32I32Load8S, ssa.OpWasm32I32Load16U, ssa.OpWasm32I32Load16S,
+		ssa.OpWasm32I32Load,
+		ssa.OpWasm32I64Load8U, ssa.OpWasm32I64Load8S, ssa.OpWasm32I64Load16U, ssa.OpWasm32I64Load16S,
+		ssa.OpWasm32I64Load32U, ssa.OpWasm32I64Load32S, ssa.OpWasm32I64Load,
+		ssa.OpWasm32F32Load, ssa.OpWasm32F64Load:
 		getValue32(s, v.Args[0])
 		p := s.Prog(v.Op.Asm())
 		p.From = obj.Addr{Type: obj.TYPE_CONST, Offset: v.AuxInt}
@@ -401,8 +419,17 @@ func ssaGenValueOnStack(s *ssagen.State, v *ssa.Value, extend bool) {
 			s.Prog(wasm32.AI64ExtendI32U)
 		}
 
+	case ssa.OpWasm32I32Eqz:
+		getValue32(s, v.Args[0])
+		s.Prog(v.Op.Asm())
+
+	case ssa.OpWasm32I32Eq, ssa.OpWasm32I32Ne, ssa.OpWasm32I32LtS, ssa.OpWasm32I32LtU, ssa.OpWasm32I32GtS, ssa.OpWasm32I32GtU, ssa.OpWasm32I32LeS, ssa.OpWasm32I32LeU, ssa.OpWasm32I32GeS, ssa.OpWasm32I32GeU,
+		ssa.OpWasm32F32Eq, ssa.OpWasm32F32Ne, ssa.OpWasm32F32Lt, ssa.OpWasm32F32Gt, ssa.OpWasm32F32Le, ssa.OpWasm32F32Ge:
+		getValue32(s, v.Args[0])
+		getValue32(s, v.Args[1])
+		s.Prog(v.Op.Asm())
+
 	case ssa.OpWasm32I64Eq, ssa.OpWasm32I64Ne, ssa.OpWasm32I64LtS, ssa.OpWasm32I64LtU, ssa.OpWasm32I64GtS, ssa.OpWasm32I64GtU, ssa.OpWasm32I64LeS, ssa.OpWasm32I64LeU, ssa.OpWasm32I64GeS, ssa.OpWasm32I64GeU,
-		ssa.OpWasm32F32Eq, ssa.OpWasm32F32Ne, ssa.OpWasm32F32Lt, ssa.OpWasm32F32Gt, ssa.OpWasm32F32Le, ssa.OpWasm32F32Ge,
 		ssa.OpWasm32F64Eq, ssa.OpWasm32F64Ne, ssa.OpWasm32F64Lt, ssa.OpWasm32F64Gt, ssa.OpWasm32F64Le, ssa.OpWasm32F64Ge:
 		getValue64(s, v.Args[0])
 		getValue64(s, v.Args[1])
@@ -411,29 +438,51 @@ func ssaGenValueOnStack(s *ssagen.State, v *ssa.Value, extend bool) {
 			s.Prog(wasm32.AI64ExtendI32U)
 		}
 
+	case ssa.OpWasm32I32Add, ssa.OpWasm32I32Sub, ssa.OpWasm32I32Mul, ssa.OpWasm32I32DivU, ssa.OpWasm32I32RemS, ssa.OpWasm32I32RemU, ssa.OpWasm32I32And, ssa.OpWasm32I32Or, ssa.OpWasm32I32Xor, ssa.OpWasm32I32Shl, ssa.OpWasm32I32ShrS, ssa.OpWasm32I32ShrU, ssa.OpWasm32I32Rotl,
+		ssa.OpWasm32F32Add, ssa.OpWasm32F32Sub, ssa.OpWasm32F32Mul, ssa.OpWasm32F32Div, ssa.OpWasm32F32Copysign:
+		getValue32(s, v.Args[0])
+		getValue32(s, v.Args[1])
+		s.Prog(v.Op.Asm())
+
 	case ssa.OpWasm32I64Add, ssa.OpWasm32I64Sub, ssa.OpWasm32I64Mul, ssa.OpWasm32I64DivU, ssa.OpWasm32I64RemS, ssa.OpWasm32I64RemU, ssa.OpWasm32I64And, ssa.OpWasm32I64Or, ssa.OpWasm32I64Xor, ssa.OpWasm32I64Shl, ssa.OpWasm32I64ShrS, ssa.OpWasm32I64ShrU, ssa.OpWasm32I64Rotl,
-		ssa.OpWasm32F32Add, ssa.OpWasm32F32Sub, ssa.OpWasm32F32Mul, ssa.OpWasm32F32Div, ssa.OpWasm32F32Copysign,
 		ssa.OpWasm32F64Add, ssa.OpWasm32F64Sub, ssa.OpWasm32F64Mul, ssa.OpWasm32F64Div, ssa.OpWasm32F64Copysign:
 		getValue64(s, v.Args[0])
 		getValue64(s, v.Args[1])
 		s.Prog(v.Op.Asm())
 
-	case ssa.OpWasm32I32Rotl:
+	case ssa.OpWasm32I32DivS:
 		getValue32(s, v.Args[0])
 		getValue32(s, v.Args[1])
-		s.Prog(wasm32.AI32Rotl)
-		s.Prog(wasm32.AI64ExtendI32U)
+		if v.Type.Size() == 8 {
+			// Division of int64 needs helper function wasmDiv to handle the MinInt64 / -1 case.
+			p := s.Prog(wasm32.ACall)
+			p.To = obj.Addr{Type: obj.TYPE_MEM, Name: obj.NAME_EXTERN, Sym: ir.Syms.WasmDiv}
+			break
+		}
+		s.Prog(wasm32.AI32DivS)
 
 	case ssa.OpWasm32I64DivS:
 		getValue64(s, v.Args[0])
 		getValue64(s, v.Args[1])
 		if v.Type.Size() == 8 {
-			// Division of int64 needs helper function wasm32Div to handle the MinInt64 / -1 case.
+			// Division of int64 needs helper function wasmDiv to handle the MinInt64 / -1 case.
 			p := s.Prog(wasm32.ACall)
 			p.To = obj.Addr{Type: obj.TYPE_MEM, Name: obj.NAME_EXTERN, Sym: ir.Syms.WasmDiv}
 			break
 		}
 		s.Prog(wasm32.AI64DivS)
+
+	case ssa.OpWasm32I32TruncSatF32S, ssa.OpWasm32I32TruncSatF64S:
+		getValue32(s, v.Args[0])
+		if buildcfg.GOWASM.SatConv {
+			s.Prog(v.Op.Asm())
+		} else {
+			if v.Op == ssa.OpWasm32I32TruncSatF32S {
+				s.Prog(wasm32.AF64PromoteF32)
+			}
+			p := s.Prog(wasm32.ACall)
+			p.To = obj.Addr{Type: obj.TYPE_MEM, Name: obj.NAME_EXTERN, Sym: ir.Syms.WasmTruncS}
+		}
 
 	case ssa.OpWasm32I64TruncSatF32S, ssa.OpWasm32I64TruncSatF64S:
 		getValue64(s, v.Args[0])
@@ -445,6 +494,18 @@ func ssaGenValueOnStack(s *ssagen.State, v *ssa.Value, extend bool) {
 			}
 			p := s.Prog(wasm32.ACall)
 			p.To = obj.Addr{Type: obj.TYPE_MEM, Name: obj.NAME_EXTERN, Sym: ir.Syms.WasmTruncS}
+		}
+
+	case ssa.OpWasm32I32TruncSatF32U, ssa.OpWasm32I32TruncSatF64U:
+		getValue32(s, v.Args[0])
+		if buildcfg.GOWASM.SatConv {
+			s.Prog(v.Op.Asm())
+		} else {
+			if v.Op == ssa.OpWasm32I32TruncSatF32U {
+				s.Prog(wasm32.AF64PromoteF32)
+			}
+			p := s.Prog(wasm32.ACall)
+			p.To = obj.Addr{Type: obj.TYPE_MEM, Name: obj.NAME_EXTERN, Sym: ir.Syms.WasmTruncU}
 		}
 
 	case ssa.OpWasm32I64TruncSatF32U, ssa.OpWasm32I64TruncSatF64U:
@@ -467,12 +528,17 @@ func ssaGenValueOnStack(s *ssagen.State, v *ssa.Value, extend bool) {
 		getValue64(s, v.Args[0])
 		s.Prog(v.Op.Asm())
 
-	case ssa.OpWasm32F32ConvertI64S, ssa.OpWasm32F32ConvertI64U,
+	case
+		ssa.OpWasm32F32ConvertI64S, ssa.OpWasm32F32ConvertI64U,
 		ssa.OpWasm32F64ConvertI64S, ssa.OpWasm32F64ConvertI64U,
+		ssa.OpWasm32F32ConvertI32S, ssa.OpWasm32F32ConvertI32U,
+		ssa.OpWasm32F64ConvertI32S, ssa.OpWasm32F64ConvertI32U,
 		ssa.OpWasm32I64Extend8S, ssa.OpWasm32I64Extend16S, ssa.OpWasm32I64Extend32S,
+		ssa.OpWasm32I32Extend8S, ssa.OpWasm32I32Extend16S,
 		ssa.OpWasm32F32Neg, ssa.OpWasm32F32Sqrt, ssa.OpWasm32F32Trunc, ssa.OpWasm32F32Ceil, ssa.OpWasm32F32Floor, ssa.OpWasm32F32Nearest, ssa.OpWasm32F32Abs,
 		ssa.OpWasm32F64Neg, ssa.OpWasm32F64Sqrt, ssa.OpWasm32F64Trunc, ssa.OpWasm32F64Ceil, ssa.OpWasm32F64Floor, ssa.OpWasm32F64Nearest, ssa.OpWasm32F64Abs,
-		ssa.OpWasm32I64Ctz, ssa.OpWasm32I64Clz, ssa.OpWasm32I64Popcnt:
+		ssa.OpWasm32I64Ctz, ssa.OpWasm32I64Clz, ssa.OpWasm32I64Popcnt,
+		ssa.OpWasm32I32Ctz, ssa.OpWasm32I32Clz, ssa.OpWasm32I32Popcnt:
 		getValue64(s, v.Args[0])
 		s.Prog(v.Op.Asm())
 

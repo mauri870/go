@@ -160,12 +160,22 @@ func init() {
 		{name: "I64Store32", asm: "I64Store32", argLength: 3, reg: gpstore, aux: "Int64", typ: "Mem"},   // store 32-bit integer arg1 at address arg0+aux, arg2=mem, returns mem
 		{name: "I64Store", asm: "I64Store", argLength: 3, reg: gpstore, aux: "Int64", typ: "Mem"},       // store 64-bit integer arg1 at address arg0+aux, arg2=mem, returns mem
 
+		{name: "I32Load8U", asm: "I32Load8U", argLength: 2, reg: gpload, aux: "Int32", typ: "UInt8"},    // read unsigned 8-bit integer from address arg0+aux, arg1=mem
+		{name: "I32Load8S", asm: "I32Load8S", argLength: 2, reg: gpload, aux: "Int32", typ: "Int8"},     // read signed 8-bit integer from address arg0+aux, arg1=mem
+		{name: "I32Load16U", asm: "I32Load16U", argLength: 2, reg: gpload, aux: "Int32", typ: "UInt16"}, // read unsigned 16-bit integer from address arg0+aux, arg1=mem
+		{name: "I32Load16S", asm: "I32Load16S", argLength: 2, reg: gpload, aux: "Int32", typ: "Int16"},  // read signed 16-bit integer from address arg0+aux, arg1=mem
+		{name: "I32Load", asm: "I32Load", argLength: 2, reg: gpload, aux: "Int32", typ: "UInt32"},       // read 32-bit integer from address arg0+aux, arg1=mem
+		{name: "I32Store8", asm: "I32Store8", argLength: 3, reg: gpstore, aux: "Int32", typ: "Mem"},     // store 8-bit integer arg1 at address arg0+aux, arg2=mem, returns mem
+		{name: "I32Store16", asm: "I32Store16", argLength: 3, reg: gpstore, aux: "Int32", typ: "Mem"},   // store 16-bit integer arg1 at address arg0+aux, arg2=mem, returns mem
+		{name: "I32Store", asm: "I32Store", argLength: 3, reg: gpstore, aux: "Int32", typ: "Mem"},       // store 32-bit integer arg1 at address arg0+aux, arg2=mem, returns mem
+
 		{name: "F32Load", asm: "F32Load", argLength: 2, reg: fp32load, aux: "Int64", typ: "Float32"}, // read 32-bit float from address arg0+aux, arg1=mem
 		{name: "F64Load", asm: "F64Load", argLength: 2, reg: fp64load, aux: "Int64", typ: "Float64"}, // read 64-bit float from address arg0+aux, arg1=mem
 		{name: "F32Store", asm: "F32Store", argLength: 3, reg: fp32store, aux: "Int64", typ: "Mem"},  // store 32-bit float arg1 at address arg0+aux, arg2=mem, returns mem
 		{name: "F64Store", asm: "F64Store", argLength: 3, reg: fp64store, aux: "Int64", typ: "Mem"},  // store 64-bit float arg1 at address arg0+aux, arg2=mem, returns mem
 
 		{name: "I64Const", reg: gp01, aux: "Int64", rematerializeable: true, typ: "Int64"},        // returns the constant integer aux
+		{name: "I32Const", reg: gp01, aux: "Int32", rematerializeable: true, typ: "Int32"},        // returns the constant integer aux
 		{name: "F32Const", reg: fp32_01, aux: "Float32", rematerializeable: true, typ: "Float32"}, // returns the constant float aux
 		{name: "F64Const", reg: fp64_01, aux: "Float64", rematerializeable: true, typ: "Float64"}, // returns the constant float aux
 
@@ -180,6 +190,18 @@ func init() {
 		{name: "I64LeU", asm: "I64LeU", argLength: 2, reg: gp21, typ: "Bool"}, // arg0 <= arg1 (unsigned)
 		{name: "I64GeS", asm: "I64GeS", argLength: 2, reg: gp21, typ: "Bool"}, // arg0 >= arg1 (signed)
 		{name: "I64GeU", asm: "I64GeU", argLength: 2, reg: gp21, typ: "Bool"}, // arg0 >= arg1 (unsigned)
+
+		{name: "I32Eqz", asm: "I32Eqz", argLength: 1, reg: gp11, typ: "Bool"}, // arg0 == 0
+		{name: "I32Eq", asm: "I32Eq", argLength: 2, reg: gp21, typ: "Bool"},   // arg0 == arg1
+		{name: "I32Ne", asm: "I32Ne", argLength: 2, reg: gp21, typ: "Bool"},   // arg0 != arg1
+		{name: "I32LtS", asm: "I32LtS", argLength: 2, reg: gp21, typ: "Bool"}, // arg0 < arg1 (signed)
+		{name: "I32LtU", asm: "I32LtU", argLength: 2, reg: gp21, typ: "Bool"}, // arg0 < arg1 (unsigned)
+		{name: "I32GtS", asm: "I32GtS", argLength: 2, reg: gp21, typ: "Bool"}, // arg0 > arg1 (signed)
+		{name: "I32GtU", asm: "I32GtU", argLength: 2, reg: gp21, typ: "Bool"}, // arg0 > arg1 (unsigned)
+		{name: "I32LeS", asm: "I32LeS", argLength: 2, reg: gp21, typ: "Bool"}, // arg0 <= arg1 (signed)
+		{name: "I32LeU", asm: "I32LeU", argLength: 2, reg: gp21, typ: "Bool"}, // arg0 <= arg1 (unsigned)
+		{name: "I32GeS", asm: "I32GeS", argLength: 2, reg: gp21, typ: "Bool"}, // arg0 >= arg1 (signed)
+		{name: "I32GeU", asm: "I32GeU", argLength: 2, reg: gp21, typ: "Bool"}, // arg0 >= arg1 (unsigned)
 
 		{name: "F32Eq", asm: "F32Eq", argLength: 2, reg: fp32_21gp, typ: "Bool"}, // arg0 == arg1
 		{name: "F32Ne", asm: "F32Ne", argLength: 2, reg: fp32_21gp, typ: "Bool"}, // arg0 != arg1
@@ -210,6 +232,21 @@ func init() {
 		{name: "I64ShrS", asm: "I64ShrS", argLength: 2, reg: gp21, typ: "Int64"},                  // arg0 >> (arg1 % 64) (signed)
 		{name: "I64ShrU", asm: "I64ShrU", argLength: 2, reg: gp21, typ: "Int64"},                  // arg0 >> (arg1 % 64) (unsigned)
 
+		{name: "I32Add", asm: "I32Add", argLength: 2, reg: gp21, typ: "Int32"},                    // arg0 + arg1
+		{name: "I32AddConst", asm: "I32Add", argLength: 1, reg: gp11, aux: "Int32", typ: "Int32"}, // arg0 + aux
+		{name: "I32Sub", asm: "I32Sub", argLength: 2, reg: gp21, typ: "Int32"},                    // arg0 - arg1
+		{name: "I32Mul", asm: "I32Mul", argLength: 2, reg: gp21, typ: "Int32"},                    // arg0 * arg1
+		{name: "I32DivS", asm: "I32DivS", argLength: 2, reg: gp21, typ: "Int32"},                  // arg0 / arg1 (signed)
+		{name: "I32DivU", asm: "I32DivU", argLength: 2, reg: gp21, typ: "Int32"},                  // arg0 / arg1 (unsigned)
+		{name: "I32RemS", asm: "I32RemS", argLength: 2, reg: gp21, typ: "Int32"},                  // arg0 % arg1 (signed)
+		{name: "I32RemU", asm: "I32RemU", argLength: 2, reg: gp21, typ: "Int32"},                  // arg0 % arg1 (unsigned)
+		{name: "I32And", asm: "I32And", argLength: 2, reg: gp21, typ: "Int32"},                    // arg0 & arg1
+		{name: "I32Or", asm: "I32Or", argLength: 2, reg: gp21, typ: "Int32"},                      // arg0 | arg1
+		{name: "I32Xor", asm: "I32Xor", argLength: 2, reg: gp21, typ: "Int32"},                    // arg0 ^ arg1
+		{name: "I32Shl", asm: "I32Shl", argLength: 2, reg: gp21, typ: "Int32"},                    // arg0 << (arg1 % 32)
+		{name: "I32ShrS", asm: "I32ShrS", argLength: 2, reg: gp21, typ: "Int32"},                  // arg0 >> (arg1 % 32) (signed)
+		{name: "I32ShrU", asm: "I32ShrU", argLength: 2, reg: gp21, typ: "Int32"},                  // arg0 >> (arg1 % 32) (unsigned)
+
 		{name: "F32Neg", asm: "F32Neg", argLength: 1, reg: fp32_11, typ: "Float32"}, // -arg0
 		{name: "F32Add", asm: "F32Add", argLength: 2, reg: fp32_21, typ: "Float32"}, // arg0 + arg1
 		{name: "F32Sub", asm: "F32Sub", argLength: 2, reg: fp32_21, typ: "Float32"}, // arg0 - arg1
@@ -226,16 +263,31 @@ func init() {
 		{name: "I64TruncSatF64U", asm: "I64TruncSatF64U", argLength: 1, reg: regInfo{inputs: []regMask{fp64}, outputs: []regMask{gp}}, typ: "Int64"}, // truncates the float arg0 to an unsigned integer (saturating)
 		{name: "I64TruncSatF32S", asm: "I64TruncSatF32S", argLength: 1, reg: regInfo{inputs: []regMask{fp32}, outputs: []regMask{gp}}, typ: "Int64"}, // truncates the float arg0 to a signed integer (saturating)
 		{name: "I64TruncSatF32U", asm: "I64TruncSatF32U", argLength: 1, reg: regInfo{inputs: []regMask{fp32}, outputs: []regMask{gp}}, typ: "Int64"}, // truncates the float arg0 to an unsigned integer (saturating)
+
+		{name: "I32TruncSatF64S", asm: "I32TruncSatF64S", argLength: 1, reg: regInfo{inputs: []regMask{fp32}, outputs: []regMask{gp}}, typ: "Int32"}, // truncates the float arg0 to a signed integer (saturating)
+		{name: "I32TruncSatF64U", asm: "I32TruncSatF64U", argLength: 1, reg: regInfo{inputs: []regMask{fp32}, outputs: []regMask{gp}}, typ: "Int32"}, // truncates the float arg0 to an unsigned integer (saturating)
+		{name: "I32TruncSatF32S", asm: "I32TruncSatF32S", argLength: 1, reg: regInfo{inputs: []regMask{fp32}, outputs: []regMask{gp}}, typ: "Int32"}, // truncates the float arg0 to a signed integer (saturating)
+		{name: "I32TruncSatF32U", asm: "I32TruncSatF32U", argLength: 1, reg: regInfo{inputs: []regMask{fp32}, outputs: []regMask{gp}}, typ: "Int32"}, // truncates the float arg0 to an unsigned integer (saturating)
+
 		{name: "F32ConvertI64S", asm: "F32ConvertI64S", argLength: 1, reg: regInfo{inputs: []regMask{gp}, outputs: []regMask{fp32}}, typ: "Float32"}, // converts the signed integer arg0 to a float
 		{name: "F32ConvertI64U", asm: "F32ConvertI64U", argLength: 1, reg: regInfo{inputs: []regMask{gp}, outputs: []regMask{fp32}}, typ: "Float32"}, // converts the unsigned integer arg0 to a float
 		{name: "F64ConvertI64S", asm: "F64ConvertI64S", argLength: 1, reg: regInfo{inputs: []regMask{gp}, outputs: []regMask{fp64}}, typ: "Float64"}, // converts the signed integer arg0 to a float
 		{name: "F64ConvertI64U", asm: "F64ConvertI64U", argLength: 1, reg: regInfo{inputs: []regMask{gp}, outputs: []regMask{fp64}}, typ: "Float64"}, // converts the unsigned integer arg0 to a float
+
+		{name: "F32ConvertI32S", asm: "F32ConvertI32S", argLength: 1, reg: regInfo{inputs: []regMask{gp}, outputs: []regMask{fp32}}, typ: "Float32"}, // converts the signed integer arg0 to a float
+		{name: "F32ConvertI32U", asm: "F32ConvertI32U", argLength: 1, reg: regInfo{inputs: []regMask{gp}, outputs: []regMask{fp32}}, typ: "Float32"}, // converts the unsigned integer arg0 to a float
+		{name: "F64ConvertI32S", asm: "F64ConvertI32S", argLength: 1, reg: regInfo{inputs: []regMask{gp}, outputs: []regMask{fp64}}, typ: "Float64"}, // converts the signed integer arg0 to a float
+		{name: "F64ConvertI32U", asm: "F64ConvertI32U", argLength: 1, reg: regInfo{inputs: []regMask{gp}, outputs: []regMask{fp64}}, typ: "Float64"}, // converts the unsigned integer arg0 to a float
+
 		{name: "F32DemoteF64", asm: "F32DemoteF64", argLength: 1, reg: regInfo{inputs: []regMask{fp64}, outputs: []regMask{fp32}}, typ: "Float32"},
 		{name: "F64PromoteF32", asm: "F64PromoteF32", argLength: 1, reg: regInfo{inputs: []regMask{fp32}, outputs: []regMask{fp64}}, typ: "Float64"},
 
 		{name: "I64Extend8S", asm: "I64Extend8S", argLength: 1, reg: gp11, typ: "Int64"},   // sign-extend arg0 from 8 to 64 bit
 		{name: "I64Extend16S", asm: "I64Extend16S", argLength: 1, reg: gp11, typ: "Int64"}, // sign-extend arg0 from 16 to 64 bit
 		{name: "I64Extend32S", asm: "I64Extend32S", argLength: 1, reg: gp11, typ: "Int64"}, // sign-extend arg0 from 32 to 64 bit
+
+		{name: "I32Extend8S", asm: "I32Extend8S", argLength: 1, reg: gp11, typ: "Int32"},   // sign-extend arg0 from 8 to 32 bit
+		{name: "I32Extend16S", asm: "I32Extend16S", argLength: 1, reg: gp11, typ: "Int32"}, // sign-extend arg0 from 16 to 32 bit
 
 		{name: "F32Sqrt", asm: "F32Sqrt", argLength: 1, reg: fp32_11, typ: "Float32"},         // sqrt(arg0)
 		{name: "F32Trunc", asm: "F32Trunc", argLength: 1, reg: fp32_11, typ: "Float32"},       // trunc(arg0)
@@ -255,9 +307,12 @@ func init() {
 
 		{name: "I64Ctz", asm: "I64Ctz", argLength: 1, reg: gp11, typ: "Int64"},       // ctz(arg0)
 		{name: "I64Clz", asm: "I64Clz", argLength: 1, reg: gp11, typ: "Int64"},       // clz(arg0)
+		{name: "I32Ctz", asm: "I32Ctz", argLength: 1, reg: gp11, typ: "Int32"},       // ctz(arg0)
+		{name: "I32Clz", asm: "I32Clz", argLength: 1, reg: gp11, typ: "Int32"},       // clz(arg0)
 		{name: "I32Rotl", asm: "I32Rotl", argLength: 2, reg: gp21, typ: "Int32"},     // rotl(arg0, arg1)
 		{name: "I64Rotl", asm: "I64Rotl", argLength: 2, reg: gp21, typ: "Int64"},     // rotl(arg0, arg1)
 		{name: "I64Popcnt", asm: "I64Popcnt", argLength: 1, reg: gp11, typ: "Int64"}, // popcnt(arg0)
+		{name: "I32Popcnt", asm: "I32Popcnt", argLength: 1, reg: gp11, typ: "Int32"}, // popcnt(arg0)
 	}
 
 	archs = append(archs, arch{

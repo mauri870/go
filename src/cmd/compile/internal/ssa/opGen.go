@@ -2868,11 +2868,20 @@ const (
 	OpWasm32I64Store16
 	OpWasm32I64Store32
 	OpWasm32I64Store
+	OpWasm32I32Load8U
+	OpWasm32I32Load8S
+	OpWasm32I32Load16U
+	OpWasm32I32Load16S
+	OpWasm32I32Load
+	OpWasm32I32Store8
+	OpWasm32I32Store16
+	OpWasm32I32Store
 	OpWasm32F32Load
 	OpWasm32F64Load
 	OpWasm32F32Store
 	OpWasm32F64Store
 	OpWasm32I64Const
+	OpWasm32I32Const
 	OpWasm32F32Const
 	OpWasm32F64Const
 	OpWasm32I64Eqz
@@ -2886,6 +2895,17 @@ const (
 	OpWasm32I64LeU
 	OpWasm32I64GeS
 	OpWasm32I64GeU
+	OpWasm32I32Eqz
+	OpWasm32I32Eq
+	OpWasm32I32Ne
+	OpWasm32I32LtS
+	OpWasm32I32LtU
+	OpWasm32I32GtS
+	OpWasm32I32GtU
+	OpWasm32I32LeS
+	OpWasm32I32LeU
+	OpWasm32I32GeS
+	OpWasm32I32GeU
 	OpWasm32F32Eq
 	OpWasm32F32Ne
 	OpWasm32F32Lt
@@ -2912,6 +2932,20 @@ const (
 	OpWasm32I64Shl
 	OpWasm32I64ShrS
 	OpWasm32I64ShrU
+	OpWasm32I32Add
+	OpWasm32I32AddConst
+	OpWasm32I32Sub
+	OpWasm32I32Mul
+	OpWasm32I32DivS
+	OpWasm32I32DivU
+	OpWasm32I32RemS
+	OpWasm32I32RemU
+	OpWasm32I32And
+	OpWasm32I32Or
+	OpWasm32I32Xor
+	OpWasm32I32Shl
+	OpWasm32I32ShrS
+	OpWasm32I32ShrU
 	OpWasm32F32Neg
 	OpWasm32F32Add
 	OpWasm32F32Sub
@@ -2926,15 +2960,25 @@ const (
 	OpWasm32I64TruncSatF64U
 	OpWasm32I64TruncSatF32S
 	OpWasm32I64TruncSatF32U
+	OpWasm32I32TruncSatF64S
+	OpWasm32I32TruncSatF64U
+	OpWasm32I32TruncSatF32S
+	OpWasm32I32TruncSatF32U
 	OpWasm32F32ConvertI64S
 	OpWasm32F32ConvertI64U
 	OpWasm32F64ConvertI64S
 	OpWasm32F64ConvertI64U
+	OpWasm32F32ConvertI32S
+	OpWasm32F32ConvertI32U
+	OpWasm32F64ConvertI32S
+	OpWasm32F64ConvertI32U
 	OpWasm32F32DemoteF64
 	OpWasm32F64PromoteF32
 	OpWasm32I64Extend8S
 	OpWasm32I64Extend16S
 	OpWasm32I64Extend32S
+	OpWasm32I32Extend8S
+	OpWasm32I32Extend16S
 	OpWasm32F32Sqrt
 	OpWasm32F32Trunc
 	OpWasm32F32Ceil
@@ -2951,9 +2995,12 @@ const (
 	OpWasm32F64Copysign
 	OpWasm32I64Ctz
 	OpWasm32I64Clz
+	OpWasm32I32Ctz
+	OpWasm32I32Clz
 	OpWasm32I32Rotl
 	OpWasm32I64Rotl
 	OpWasm32I64Popcnt
+	OpWasm32I32Popcnt
 
 	OpAdd8
 	OpAdd16
@@ -38771,6 +38818,112 @@ var opcodeTable = [...]opInfo{
 		},
 	},
 	{
+		name:    "I32Load8U",
+		auxType: auxInt32,
+		argLen:  2,
+		asm:     wasm32.AI32Load8U,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 1407374883618815}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP SB
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:    "I32Load8S",
+		auxType: auxInt32,
+		argLen:  2,
+		asm:     wasm32.AI32Load8S,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 1407374883618815}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP SB
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:    "I32Load16U",
+		auxType: auxInt32,
+		argLen:  2,
+		asm:     wasm32.AI32Load16U,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 1407374883618815}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP SB
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:    "I32Load16S",
+		auxType: auxInt32,
+		argLen:  2,
+		asm:     wasm32.AI32Load16S,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 1407374883618815}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP SB
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:    "I32Load",
+		auxType: auxInt32,
+		argLen:  2,
+		asm:     wasm32.AI32Load,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 1407374883618815}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP SB
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:    "I32Store8",
+		auxType: auxInt32,
+		argLen:  3,
+		asm:     wasm32.AI32Store8,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{1, 281474976776191},  // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+				{0, 1407374883618815}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP SB
+			},
+		},
+	},
+	{
+		name:    "I32Store16",
+		auxType: auxInt32,
+		argLen:  3,
+		asm:     wasm32.AI32Store16,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{1, 281474976776191},  // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+				{0, 1407374883618815}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP SB
+			},
+		},
+	},
+	{
+		name:    "I32Store",
+		auxType: auxInt32,
+		argLen:  3,
+		asm:     wasm32.AI32Store,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{1, 281474976776191},  // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+				{0, 1407374883618815}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP SB
+			},
+		},
+	},
+	{
 		name:    "F32Load",
 		auxType: auxInt64,
 		argLen:  2,
@@ -38825,6 +38978,17 @@ var opcodeTable = [...]opInfo{
 	{
 		name:              "I64Const",
 		auxType:           auxInt64,
+		argLen:            0,
+		rematerializeable: true,
+		reg: regInfo{
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:              "I32Const",
+		auxType:           auxInt32,
 		argLen:            0,
 		rematerializeable: true,
 		reg: regInfo{
@@ -38998,6 +39162,159 @@ var opcodeTable = [...]opInfo{
 		name:   "I64GeU",
 		argLen: 2,
 		asm:    wasm32.AI64GeU,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+				{1, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:   "I32Eqz",
+		argLen: 1,
+		asm:    wasm32.AI32Eqz,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:   "I32Eq",
+		argLen: 2,
+		asm:    wasm32.AI32Eq,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+				{1, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:   "I32Ne",
+		argLen: 2,
+		asm:    wasm32.AI32Ne,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+				{1, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:   "I32LtS",
+		argLen: 2,
+		asm:    wasm32.AI32LtS,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+				{1, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:   "I32LtU",
+		argLen: 2,
+		asm:    wasm32.AI32LtU,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+				{1, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:   "I32GtS",
+		argLen: 2,
+		asm:    wasm32.AI32GtS,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+				{1, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:   "I32GtU",
+		argLen: 2,
+		asm:    wasm32.AI32GtU,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+				{1, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:   "I32LeS",
+		argLen: 2,
+		asm:    wasm32.AI32LeS,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+				{1, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:   "I32LeU",
+		argLen: 2,
+		asm:    wasm32.AI32LeU,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+				{1, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:   "I32GeS",
+		argLen: 2,
+		asm:    wasm32.AI32GeS,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+				{1, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:   "I32GeU",
+		argLen: 2,
+		asm:    wasm32.AI32GeU,
 		reg: regInfo{
 			inputs: []inputInfo{
 				{0, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
@@ -39373,6 +39690,202 @@ var opcodeTable = [...]opInfo{
 		},
 	},
 	{
+		name:   "I32Add",
+		argLen: 2,
+		asm:    wasm32.AI32Add,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+				{1, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:    "I32AddConst",
+		auxType: auxInt32,
+		argLen:  1,
+		asm:     wasm32.AI32Add,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:   "I32Sub",
+		argLen: 2,
+		asm:    wasm32.AI32Sub,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+				{1, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:   "I32Mul",
+		argLen: 2,
+		asm:    wasm32.AI32Mul,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+				{1, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:   "I32DivS",
+		argLen: 2,
+		asm:    wasm32.AI32DivS,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+				{1, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:   "I32DivU",
+		argLen: 2,
+		asm:    wasm32.AI32DivU,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+				{1, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:   "I32RemS",
+		argLen: 2,
+		asm:    wasm32.AI32RemS,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+				{1, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:   "I32RemU",
+		argLen: 2,
+		asm:    wasm32.AI32RemU,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+				{1, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:   "I32And",
+		argLen: 2,
+		asm:    wasm32.AI32And,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+				{1, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:   "I32Or",
+		argLen: 2,
+		asm:    wasm32.AI32Or,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+				{1, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:   "I32Xor",
+		argLen: 2,
+		asm:    wasm32.AI32Xor,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+				{1, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:   "I32Shl",
+		argLen: 2,
+		asm:    wasm32.AI32Shl,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+				{1, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:   "I32ShrS",
+		argLen: 2,
+		asm:    wasm32.AI32ShrS,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+				{1, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:   "I32ShrU",
+		argLen: 2,
+		asm:    wasm32.AI32ShrU,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+				{1, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
 		name:   "F32Neg",
 		argLen: 1,
 		asm:    wasm32.AF32Neg,
@@ -39563,6 +40076,58 @@ var opcodeTable = [...]opInfo{
 		},
 	},
 	{
+		name:   "I32TruncSatF64S",
+		argLen: 1,
+		asm:    wasm32.AI32TruncSatF64S,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 4294901760}, // F0 F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 F12 F13 F14 F15
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:   "I32TruncSatF64U",
+		argLen: 1,
+		asm:    wasm32.AI32TruncSatF64U,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 4294901760}, // F0 F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 F12 F13 F14 F15
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:   "I32TruncSatF32S",
+		argLen: 1,
+		asm:    wasm32.AI32TruncSatF32S,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 4294901760}, // F0 F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 F12 F13 F14 F15
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:   "I32TruncSatF32U",
+		argLen: 1,
+		asm:    wasm32.AI32TruncSatF32U,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 4294901760}, // F0 F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 F12 F13 F14 F15
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
 		name:   "F32ConvertI64S",
 		argLen: 1,
 		asm:    wasm32.AF32ConvertI64S,
@@ -39605,6 +40170,58 @@ var opcodeTable = [...]opInfo{
 		name:   "F64ConvertI64U",
 		argLen: 1,
 		asm:    wasm32.AF64ConvertI64U,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+			outputs: []outputInfo{
+				{0, 281470681743360}, // F16 F17 F18 F19 F20 F21 F22 F23 F24 F25 F26 F27 F28 F29 F30 F31
+			},
+		},
+	},
+	{
+		name:   "F32ConvertI32S",
+		argLen: 1,
+		asm:    wasm32.AF32ConvertI32S,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+			outputs: []outputInfo{
+				{0, 4294901760}, // F0 F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 F12 F13 F14 F15
+			},
+		},
+	},
+	{
+		name:   "F32ConvertI32U",
+		argLen: 1,
+		asm:    wasm32.AF32ConvertI32U,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+			outputs: []outputInfo{
+				{0, 4294901760}, // F0 F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 F12 F13 F14 F15
+			},
+		},
+	},
+	{
+		name:   "F64ConvertI32S",
+		argLen: 1,
+		asm:    wasm32.AF64ConvertI32S,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+			outputs: []outputInfo{
+				{0, 281470681743360}, // F16 F17 F18 F19 F20 F21 F22 F23 F24 F25 F26 F27 F28 F29 F30 F31
+			},
+		},
+	},
+	{
+		name:   "F64ConvertI32U",
+		argLen: 1,
+		asm:    wasm32.AF64ConvertI32U,
 		reg: regInfo{
 			inputs: []inputInfo{
 				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
@@ -39670,6 +40287,32 @@ var opcodeTable = [...]opInfo{
 		name:   "I64Extend32S",
 		argLen: 1,
 		asm:    wasm32.AI64Extend32S,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:   "I32Extend8S",
+		argLen: 1,
+		asm:    wasm32.AI32Extend8S,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:   "I32Extend16S",
+		argLen: 1,
+		asm:    wasm32.AI32Extend16S,
 		reg: regInfo{
 			inputs: []inputInfo{
 				{0, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
@@ -39890,6 +40533,32 @@ var opcodeTable = [...]opInfo{
 		},
 	},
 	{
+		name:   "I32Ctz",
+		argLen: 1,
+		asm:    wasm32.AI32Ctz,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:   "I32Clz",
+		argLen: 1,
+		asm:    wasm32.AI32Clz,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
 		name:   "I32Rotl",
 		argLen: 2,
 		asm:    wasm32.AI32Rotl,
@@ -39921,6 +40590,19 @@ var opcodeTable = [...]opInfo{
 		name:   "I64Popcnt",
 		argLen: 1,
 		asm:    wasm32.AI64Popcnt,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
+			},
+			outputs: []outputInfo{
+				{0, 65535}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15
+			},
+		},
+	},
+	{
+		name:   "I32Popcnt",
+		argLen: 1,
+		asm:    wasm32.AI32Popcnt,
 		reg: regInfo{
 			inputs: []inputInfo{
 				{0, 281474976776191}, // R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP
