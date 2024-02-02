@@ -1469,7 +1469,7 @@ var (
 		"s390x":   {},
 		"wasm":    {},
 		"wasm32":  {},
-		"riscv64": {},
+		"riscv64": {"GORISCV64", "rva20u64", "rva22u64"},
 	}
 )
 

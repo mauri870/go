@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"go/build"
 	"io/fs"
+	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -20,7 +21,6 @@ import (
 
 	"cmd/go/internal/base"
 	"cmd/go/internal/cfg"
-	"cmd/go/internal/cmdflag"
 	"cmd/go/internal/gover"
 	"cmd/go/internal/modfetch"
 	"cmd/go/internal/modload"
@@ -87,6 +87,9 @@ func FilterEnv(env []string) []string {
 // It must be called early in startup.
 // See https://go.dev/doc/toolchain#select.
 func Select() {
+	log.SetPrefix("go: ")
+	defer log.SetPrefix("")
+
 	if !modload.WillBeEnabled() {
 		return
 	}
@@ -132,15 +135,15 @@ func Select() {
 			v := gover.FromToolchain(min)
 			if v == "" {
 				if plus {
-					base.Fatalf("go: invalid GOTOOLCHAIN %q: invalid minimum toolchain %q", gotoolchain, min)
+					base.Fatalf("invalid GOTOOLCHAIN %q: invalid minimum toolchain %q", gotoolchain, min)
 				}
-				base.Fatalf("go: invalid GOTOOLCHAIN %q", gotoolchain)
+				base.Fatalf("invalid GOTOOLCHAIN %q", gotoolchain)
 			}
 			minToolchain = min
 			minVers = v
 		}
 		if plus && suffix != "auto" && suffix != "path" {
-			base.Fatalf("go: invalid GOTOOLCHAIN %q: only version suffixes are +auto and +path", gotoolchain)
+			base.Fatalf("invalid GOTOOLCHAIN %q: only version suffixes are +auto and +path", gotoolchain)
 		}
 		mode = suffix
 	}
@@ -171,7 +174,7 @@ func Select() {
 				// has a suffix like "go1.21.1-foo" and toolchain is "go1.21.1".)
 				toolVers := gover.FromToolchain(toolchain)
 				if toolVers == "" || (!strings.HasPrefix(toolchain, "go") && !strings.Contains(toolchain, "-go")) {
-					base.Fatalf("go: invalid toolchain %q in %s", toolchain, base.ShortPath(file))
+					base.Fatalf("invalid toolchain %q in %s", toolchain, base.ShortPath(file))
 				}
 				if gover.Compare(toolVers, minVers) > 0 {
 					gotoolchain = toolchain
@@ -193,7 +196,7 @@ func Select() {
 	// so that we have initialized gover.Startup for use in error messages.
 	if target := os.Getenv(targetEnv); target != "" && TestVersionSwitch != "loop" {
 		if gover.LocalToolchain() != target {
-			base.Fatalf("go: toolchain %v invoked to provide %v", gover.LocalToolchain(), target)
+			base.Fatalf("toolchain %v invoked to provide %v", gover.LocalToolchain(), target)
 		}
 		os.Unsetenv(targetEnv)
 
@@ -224,7 +227,7 @@ func Select() {
 	// We want to disallow mistakes / bad ideas like GOTOOLCHAIN=bash,
 	// since we will find that in the path lookup.
 	if !strings.HasPrefix(gotoolchain, "go1") && !strings.Contains(gotoolchain, "-go1") {
-		base.Fatalf("go: invalid GOTOOLCHAIN %q", gotoolchain)
+		base.Fatalf("invalid GOTOOLCHAIN %q", gotoolchain)
 	}
 
 	Exec(gotoolchain)
@@ -243,6 +246,8 @@ var TestVersionSwitch string
 // as a source of Go toolchains. Otherwise Exec tries the PATH but then downloads
 // a toolchain if necessary.
 func Exec(gotoolchain string) {
+	log.SetPrefix("go: ")
+
 	writeBits = sysWriteBits()
 
 	count, _ := strconv.Atoi(os.Getenv(countEnv))
@@ -250,7 +255,7 @@ func Exec(gotoolchain string) {
 		fmt.Fprintf(os.Stderr, "go: switching from go%v to %v [depth %d]\n", gover.Local(), gotoolchain, count)
 	}
 	if count >= maxSwitch {
-		base.Fatalf("go: too many toolchain switches")
+		base.Fatalf("too many toolchain switches")
 	}
 	os.Setenv(countEnv, fmt.Sprint(count+1))
 
@@ -273,7 +278,7 @@ func Exec(gotoolchain string) {
 	case "loop", "mismatch":
 		exe, err := os.Executable()
 		if err != nil {
-			base.Fatal(err)
+			base.Fatalf("%v", err)
 		}
 		execGoToolchain(gotoolchain, os.Getenv("GOROOT"), exe)
 	}
@@ -288,7 +293,7 @@ func Exec(gotoolchain string) {
 	// GOTOOLCHAIN=auto looks in PATH and then falls back to download.
 	// GOTOOLCHAIN=path only looks in PATH.
 	if pathOnly {
-		base.Fatalf("go: cannot find %q in PATH", gotoolchain)
+		base.Fatalf("cannot find %q in PATH", gotoolchain)
 	}
 
 	// Set up modules without an explicit go.mod, to download distribution.
@@ -307,9 +312,9 @@ func Exec(gotoolchain string) {
 	dir, err := modfetch.Download(context.Background(), m)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			base.Fatalf("go: download %s for %s/%s: toolchain not available", gotoolchain, runtime.GOOS, runtime.GOARCH)
+			base.Fatalf("download %s for %s/%s: toolchain not available", gotoolchain, runtime.GOOS, runtime.GOARCH)
 		}
-		base.Fatalf("go: download %s: %v", gotoolchain, err)
+		base.Fatalf("download %s: %v", gotoolchain, err)
 	}
 
 	// On first use after download, set the execute bits on the commands
@@ -318,7 +323,7 @@ func Exec(gotoolchain string) {
 	if runtime.GOOS != "windows" {
 		info, err := os.Stat(filepath.Join(dir, "bin/go"))
 		if err != nil {
-			base.Fatalf("go: download %s: %v", gotoolchain, err)
+			base.Fatalf("download %s: %v", gotoolchain, err)
 		}
 		if info.Mode()&0111 == 0 {
 			// allowExec sets the exec permission bits on all files found in dir.
@@ -339,7 +344,7 @@ func Exec(gotoolchain string) {
 					return nil
 				})
 				if err != nil {
-					base.Fatalf("go: download %s: %v", gotoolchain, err)
+					base.Fatalf("download %s: %v", gotoolchain, err)
 				}
 			}
 
@@ -381,7 +386,7 @@ func Exec(gotoolchain string) {
 			err = raceSafeCopy(srcUGoMod, srcGoMod)
 		}
 		if err != nil {
-			base.Fatalf("go: download %s: %v", gotoolchain, err)
+			base.Fatalf("download %s: %v", gotoolchain, err)
 		}
 	}
 
@@ -472,7 +477,7 @@ func modGoToolchain() (file, goVers, toolchain string) {
 
 	data, err := os.ReadFile(file)
 	if err != nil {
-		base.Fatal(err)
+		base.Fatalf("%v", err)
 	}
 	return file, gover.GoModLookup(data, "go"), gover.GoModLookup(data, "toolchain")
 }
@@ -483,90 +488,131 @@ func goInstallVersion() bool {
 	// Note: We assume there are no flags between 'go' and 'install' or 'run'.
 	// During testing there are some debugging flags that are accepted
 	// in that position, but in production go binaries there are not.
-	if len(os.Args) < 3 || (os.Args[1] != "install" && os.Args[1] != "run") {
+	if len(os.Args) < 3 {
 		return false
 	}
 
-	// Check for pkg@version.
-	var arg string
 	var cmdFlags *flag.FlagSet
 	switch os.Args[1] {
 	default:
+		// Command doesn't support a pkg@version as the main module.
 		return false
 	case "install":
-		// We would like to let 'go install -newflag pkg@version' work even
-		// across a toolchain switch. To make that work, assume the pkg@version
-		// is the last argument and skip the flag parsing.
-		arg = os.Args[len(os.Args)-1]
 		cmdFlags = &work.CmdInstall.Flag
 	case "run":
-		// For run, the pkg@version can be anywhere on the command line,
-		// because it is preceded by run flags and followed by arguments to the
-		// program being run. To handle that precisely, we have to interpret the
-		// flags a little bit, to know whether each flag takes an optional argument.
-		// We can still allow unknown flags as long as they have an explicit =value.
-		args := os.Args[2:]
 		cmdFlags = &run.CmdRun.Flag
-		for i := 0; i < len(args); i++ {
-			a := args[i]
-			if !strings.HasPrefix(a, "-") {
-				arg = a
-				break
-			}
-			if a == "-" {
-				// non-flag but also non-pkg@version
+	}
+
+	// The modcachrw flag is unique, in that it affects how we fetch the
+	// requested module to even figure out what toolchain it needs.
+	// We need to actually set it before we check the toolchain version.
+	// (See https://go.dev/issue/64282.)
+	modcacherwFlag := cmdFlags.Lookup("modcacherw")
+	if modcacherwFlag == nil {
+		base.Fatalf("internal error: modcacherw flag not registered for command")
+	}
+	modcacherwVal, ok := modcacherwFlag.Value.(interface {
+		IsBoolFlag() bool
+		flag.Value
+	})
+	if !ok || !modcacherwVal.IsBoolFlag() {
+		base.Fatalf("internal error: modcacherw is not a boolean flag")
+	}
+
+	// Make a best effort to parse the command's args to find the pkg@version
+	// argument and the -modcacherw flag.
+	var (
+		pkgArg         string
+		modcacherwSeen bool
+	)
+	for args := os.Args[2:]; len(args) > 0; {
+		a := args[0]
+		args = args[1:]
+		if a == "--" {
+			if len(args) == 0 {
 				return false
 			}
-			if a == "--" {
-				if i+1 >= len(args) {
-					return false
+			pkgArg = args[0]
+			break
+		}
+
+		a, ok := strings.CutPrefix(a, "-")
+		if !ok {
+			// Not a flag argument. Must be a package.
+			pkgArg = a
+			break
+		}
+		a = strings.TrimPrefix(a, "-") // Treat --flag as -flag.
+
+		name, val, hasEq := strings.Cut(a, "=")
+
+		if name == "modcacherw" {
+			if !hasEq {
+				val = "true"
+			}
+			if err := modcacherwVal.Set(val); err != nil {
+				return false
+			}
+			modcacherwSeen = true
+			continue
+		}
+
+		if hasEq {
+			// Already has a value; don't bother parsing it.
+			continue
+		}
+
+		f := run.CmdRun.Flag.Lookup(a)
+		if f == nil {
+			// We don't know whether this flag is a boolean.
+			if os.Args[1] == "run" {
+				// We don't know where to find the pkg@version argument.
+				// For run, the pkg@version can be anywhere on the command line,
+				// because it is preceded by run flags and followed by arguments to the
+				// program being run. Since we don't know whether this flag takes
+				// an argument, we can't reliably identify the end of the run flags.
+				// Just give up and let the user clarify using the "=" form..
+				return false
+			}
+
+			// We would like to let 'go install -newflag pkg@version' work even
+			// across a toolchain switch. To make that work, assume by default that
+			// the pkg@version is the last argument and skip the remaining args unless
+			// we spot a plausible "-modcacherw" flag.
+			for len(args) > 0 {
+				a := args[0]
+				name, _, _ := strings.Cut(a, "=")
+				if name == "-modcacherw" || name == "--modcacherw" {
+					break
 				}
-				arg = args[i+1]
-				break
+				if len(args) == 1 && !strings.HasPrefix(a, "-") {
+					pkgArg = a
+				}
+				args = args[1:]
 			}
-			a = strings.TrimPrefix(a, "-")
-			a = strings.TrimPrefix(a, "-")
-			if strings.HasPrefix(a, "-") {
-				// non-flag but also non-pkg@version
-				return false
-			}
-			if strings.Contains(a, "=") {
-				// already has value
-				continue
-			}
-			f := run.CmdRun.Flag.Lookup(a)
-			if f == nil {
-				// Unknown flag. Give up. The command is going to fail in flag parsing.
-				return false
-			}
-			if bf, ok := f.Value.(interface{ IsBoolFlag() bool }); ok && bf.IsBoolFlag() {
-				// Does not take value.
-				continue
-			}
-			i++ // Does take a value; skip it.
+			continue
+		}
+
+		if bf, ok := f.Value.(interface{ IsBoolFlag() bool }); !ok || !bf.IsBoolFlag() {
+			// The next arg is the value for this flag. Skip it.
+			args = args[1:]
+			continue
 		}
 	}
-	if !strings.Contains(arg, "@") || build.IsLocalImport(arg) || filepath.IsAbs(arg) {
+
+	if !strings.Contains(pkgArg, "@") || build.IsLocalImport(pkgArg) || filepath.IsAbs(pkgArg) {
 		return false
 	}
-	path, version, _ := strings.Cut(arg, "@")
+	path, version, _ := strings.Cut(pkgArg, "@")
 	if path == "" || version == "" || gover.IsToolchain(path) {
 		return false
 	}
 
-	// Make a best effort to parse flags so that module flags like -modcacherw
-	// will take effect (see https://go.dev/issue/64282).
-	args := os.Args[2:]
-	for len(args) > 0 {
-		var err error
-		_, args, err = cmdflag.ParseOne(cmdFlags, args)
-		if errors.Is(err, cmdflag.ErrFlagTerminator) {
-			break
-		}
-		// Ignore all other errors: they may be new flags — or updated syntax for
-		// existing flags — intended for a newer Go toolchain.
+	if !modcacherwSeen && base.InGOFLAGS("-modcacherw") {
+		fs := flag.NewFlagSet("goInstallVersion", flag.ExitOnError)
+		fs.Var(modcacherwVal, "modcacherw", modcacherwFlag.Usage)
+		base.SetFromGOFLAGS(fs)
 	}
-	base.SetFromGOFLAGS(cmdFlags, true)
 
 	// It would be correct to simply return true here, bypassing use
 	// of the current go.mod or go.work, and let "go run" or "go install"

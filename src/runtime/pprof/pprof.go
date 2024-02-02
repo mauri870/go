@@ -69,7 +69,7 @@
 // all pprof commands.
 //
 // For more information about pprof, see
-// https://github.com/google/pprof/blob/master/doc/README.md.
+// https://github.com/google/pprof/blob/main/doc/README.md.
 package pprof
 
 import (
@@ -765,6 +765,7 @@ func writeRuntimeProfile(w io.Writer, debug int, name string, fetch func([]runti
 	var p []runtime.StackRecord
 	var labels []unsafe.Pointer
 	n, ok := fetch(nil, nil)
+
 	for {
 		// Allocate room for a slightly bigger profile,
 		// in case a few more entries have been added
