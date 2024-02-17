@@ -485,6 +485,8 @@ var insertTests = []struct {
 }
 
 func TestInsert(t *testing.T) {
+	testenv.SkipIfAsanEnabled(t)
+
 	s := []int{1, 2, 3}
 	if got := Insert(s, 0); !Equal(got, s) {
 		t.Errorf("Insert(%v, 0) = %v, want %v", s, got, s)
@@ -883,6 +885,7 @@ func BenchmarkCompactFunc_Large(b *testing.B) {
 }
 
 func TestGrow(t *testing.T) {
+	testenv.SkipIfAsanEnabled(t)
 	s1 := []int{1, 2, 3}
 
 	copy := Clone(s1)
@@ -1226,6 +1229,7 @@ func TestInference(t *testing.T) {
 }
 
 func TestConcat(t *testing.T) {
+	testenv.SkipIfAsanEnabled(t)
 	cases := []struct {
 		s    [][]int
 		want []int

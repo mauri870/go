@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"internal/testenv"
 	"io"
 	"math/rand"
 	"strconv"
@@ -585,6 +586,7 @@ func TestWriteInvalidRune(t *testing.T) {
 }
 
 func TestReadStringAllocs(t *testing.T) {
+	testenv.SkipIfAsanEnabled(t)
 	r := strings.NewReader("       foo       foo        42        42        42        42        42        42        42        42       4.2       4.2       4.2       4.2\n")
 	buf := NewReader(r)
 	allocs := testing.AllocsPerRun(100, func() {

@@ -7,6 +7,7 @@ package sql
 import (
 	"database/sql/driver"
 	"fmt"
+	"internal/testenv"
 	"reflect"
 	"runtime"
 	"strings"
@@ -333,6 +334,7 @@ func TestValueConverters(t *testing.T) {
 
 // Tests that assigning to RawBytes doesn't allocate (and also works).
 func TestRawBytesAllocs(t *testing.T) {
+	testenv.SkipIfAsanEnabled(t)
 	var tests = []struct {
 		name string
 		in   any

@@ -228,6 +228,7 @@ func TestCallDepth(t *testing.T) {
 }
 
 func TestAlloc(t *testing.T) {
+	testenv.SkipIfAsanEnabled(t)
 	ctx := context.Background()
 	dl := New(discardHandler{})
 	defer SetDefault(Default()) // restore

@@ -1273,6 +1273,7 @@ var deepEqualPerfTests = []struct {
 }
 
 func TestDeepEqualAllocs(t *testing.T) {
+	testenv.SkipIfAsanEnabled(t)
 	for _, tt := range deepEqualPerfTests {
 		t.Run(ValueOf(tt.x).Type().String(), func(t *testing.T) {
 			got := testing.AllocsPerRun(100, func() {
@@ -7306,6 +7307,7 @@ func TestPtrToMethods(t *testing.T) {
 }
 
 func TestMapAlloc(t *testing.T) {
+	testenv.SkipIfAsanEnabled(t)
 	m := ValueOf(make(map[int]int, 10))
 	k := ValueOf(5)
 	v := ValueOf(7)
@@ -7336,6 +7338,7 @@ func TestMapAlloc(t *testing.T) {
 }
 
 func TestChanAlloc(t *testing.T) {
+	testenv.SkipIfAsanEnabled(t)
 	// Note: for a chan int, the return Value must be allocated, so we
 	// use a chan *int instead.
 	c := ValueOf(make(chan *int, 1))
@@ -7642,6 +7645,7 @@ func TestMapIterNilMap(t *testing.T) {
 }
 
 func TestMapIterReset(t *testing.T) {
+	testenv.SkipIfAsanEnabled(t)
 	iter := new(MapIter)
 
 	// Use of zero iterator should panic.

@@ -15,6 +15,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"internal/asan"
 	"internal/cfg"
 	"internal/platform"
 	"os"
@@ -449,9 +450,17 @@ func SkipIfShortAndSlow(t testing.TB) {
 
 // SkipIfOptimizationOff skips t if optimization is disabled.
 func SkipIfOptimizationOff(t testing.TB) {
-	if OptimizationOff() {
+	if OptimizationOff() || asan.Enabled {
 		t.Helper()
-		t.Skip("skipping test with optimization disabled")
+		t.Skip("skipping test with optimization disabled or sanitizers enabled")
+	}
+}
+
+// SkipIfAsanEnabled skips t if address sanitizer is enabled.
+func SkipIfAsanEnabled(t testing.TB) {
+	if asan.Enabled {
+		t.Helper()
+		t.Skip("skipping test with asan enabled")
 	}
 }
 

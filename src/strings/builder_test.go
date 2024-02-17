@@ -6,6 +6,7 @@ package strings_test
 
 import (
 	"bytes"
+	"internal/testenv"
 	. "strings"
 	"testing"
 	"unicode/utf8"
@@ -88,6 +89,7 @@ func TestBuilderReset(t *testing.T) {
 }
 
 func TestBuilderGrow(t *testing.T) {
+	testenv.SkipIfAsanEnabled(t)
 	for _, growLen := range []int{0, 100, 1000, 10000, 100000} {
 		p := bytes.Repeat([]byte{'a'}, growLen)
 		allocs := testing.AllocsPerRun(100, func() {
@@ -188,6 +190,7 @@ func TestBuilderWriteByte(t *testing.T) {
 }
 
 func TestBuilderAllocs(t *testing.T) {
+	testenv.SkipIfAsanEnabled(t)
 	// Issue 23382; verify that copyCheck doesn't force the
 	// Builder to escape and be heap allocated.
 	n := testing.AllocsPerRun(10000, func() {
