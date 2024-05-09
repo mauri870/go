@@ -939,6 +939,7 @@ import "C"
 import (
 	"context"
 	"fmt"
+	"internal/testenv"
 	"math"
 	"math/rand"
 	"os"
@@ -1753,6 +1754,7 @@ func issue8331a() C.issue8331 {
 // issue 10303
 
 func test10303(t *testing.T, n int) {
+	testenv.SkipIfAsanEnabled(t)
 	if runtime.Compiler == "gccgo" {
 		t.Skip("gccgo permits C pointers on the stack")
 	}

@@ -1972,6 +1972,8 @@ var (
 )
 
 func TestNoAllocs(t *testing.T) {
+	testenv.SkipIfAsanEnabled(t)
+
 	// Wrappers that panic on error, to prove that our alloc-free
 	// methods are returning successfully.
 	panicIP := func(ip Addr, err error) Addr {

@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"fmt"
 	"internal/profile"
+	"internal/testenv"
 	"reflect"
 	"regexp"
 	"runtime"
@@ -63,6 +64,8 @@ func allocateReflect() {
 var memoryProfilerRun = 0
 
 func TestMemoryProfiler(t *testing.T) {
+	testenv.SkipIfAsanEnabled(t)
+
 	// Disable sampling, otherwise it's difficult to assert anything.
 	oldRate := runtime.MemProfileRate
 	runtime.MemProfileRate = 1

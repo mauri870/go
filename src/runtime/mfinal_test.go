@@ -5,6 +5,7 @@
 package runtime_test
 
 import (
+	"internal/testenv"
 	"runtime"
 	"testing"
 	"time"
@@ -165,6 +166,7 @@ func adjChunks() (*objtype, *objtype) {
 
 // Make sure an empty slice on the stack doesn't pin the next object in memory.
 func TestEmptySlice(t *testing.T) {
+	testenv.SkipIfAsanEnabled(t)
 	x, y := adjChunks()
 
 	// the pointer inside xs points to y.
@@ -194,6 +196,7 @@ func adjStringChunk() (string, *objtype) {
 
 // Make sure an empty string on the stack doesn't pin the next object in memory.
 func TestEmptyString(t *testing.T) {
+	testenv.SkipIfAsanEnabled(t)
 	x, y := adjStringChunk()
 
 	ss := x[objsize:] // change objsize to objsize-1 and the test passes

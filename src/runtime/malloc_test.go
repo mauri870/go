@@ -7,6 +7,7 @@ package runtime_test
 import (
 	"flag"
 	"fmt"
+	"internal/asan"
 	"internal/race"
 	"internal/testenv"
 	"os"
@@ -154,8 +155,8 @@ func TestStringConcatenationAllocs(t *testing.T) {
 }
 
 func TestTinyAlloc(t *testing.T) {
-	if runtime.Raceenabled {
-		t.Skip("tinyalloc suppressed when running in race mode")
+	if race.Enabled || asan.Enabled {
+		t.Skip("tinyalloc suppressed when running in race or asan mode")
 	}
 	const N = 16
 	var v [N]unsafe.Pointer
@@ -179,7 +180,7 @@ type obj12 struct {
 }
 
 func TestTinyAllocIssue37262(t *testing.T) {
-	if runtime.Raceenabled {
+	if runtime.Raceenabled || asan.Enabled {
 		t.Skip("tinyalloc suppressed when running in race mode")
 	}
 	// Try to cause an alignment access fault

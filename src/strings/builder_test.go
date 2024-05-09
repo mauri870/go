@@ -390,6 +390,8 @@ func BenchmarkBuildString_ByteBuffer(b *testing.B) {
 }
 
 func TestBuilderGrowSizeclasses(t *testing.T) {
+	testenv.SkipIfAsanEnabled(t)
+
 	s := Repeat("a", 19)
 	allocs := testing.AllocsPerRun(100, func() {
 		var b Builder

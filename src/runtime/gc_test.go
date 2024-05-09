@@ -6,6 +6,7 @@ package runtime_test
 
 import (
 	"fmt"
+	"internal/testenv"
 	"math/rand"
 	"os"
 	"reflect"
@@ -207,6 +208,7 @@ func TestGcZombieReporting(t *testing.T) {
 }
 
 func TestGCTestMoveStackOnNextCall(t *testing.T) {
+	testenv.SkipIfAsanEnabled(t)
 	t.Parallel()
 	var onStack int
 	// GCTestMoveStackOnNextCall can fail in rare cases if there's
@@ -288,6 +290,7 @@ var pointerClassBSS *int
 var pointerClassData = 42
 
 func TestGCTestPointerClass(t *testing.T) {
+	testenv.SkipIfAsanEnabled(t)
 	t.Parallel()
 	check := func(p unsafe.Pointer, want string) {
 		t.Helper()
@@ -417,6 +420,7 @@ func init() {
 }
 
 func TestReadMemStats(t *testing.T) {
+	testenv.SkipIfAsanEnabled(t)
 	base, slow := runtime.ReadMemStatsSlow()
 	if base != slow {
 		logDiff(t, "MemStats", reflect.ValueOf(base), reflect.ValueOf(slow))

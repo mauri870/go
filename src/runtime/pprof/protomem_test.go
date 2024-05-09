@@ -118,6 +118,8 @@ func locationToStrings(loc *profile.Location, funcs []string) []string {
 
 // This is a regression test for https://go.dev/issue/64528 .
 func TestGenericsHashKeyInPprofBuilder(t *testing.T) {
+	testenv.SkipIfAsanEnabled(t)
+
 	previousRate := runtime.MemProfileRate
 	runtime.MemProfileRate = 1
 	defer func() {
@@ -177,9 +179,7 @@ func nonRecursiveGenericAllocFunction[CurrentOp any, OtherOp any](alloc bool) {
 }
 
 func TestGenericsInlineLocations(t *testing.T) {
-	if testenv.OptimizationOff() {
-		t.Skip("skipping test with optimizations disabled")
-	}
+	testenv.SkipIfOptimizationOff(t)
 
 	previousRate := runtime.MemProfileRate
 	runtime.MemProfileRate = 1
