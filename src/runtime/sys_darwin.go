@@ -358,28 +358,6 @@ func open(name *byte, mode, perm int32) (ret int32) {
 }
 func open_trampoline()
 
-//go:nosplit
-//go:cgo_unsafe_args
-func nanotime1() int64 {
-	var r struct {
-		t            int64  // raw timer
-		numer, denom uint32 // conversion factors. nanoseconds = t * numer / denom.
-	}
-	libcCall(unsafe.Pointer(abi.FuncPCABI0(nanotime_trampoline)), unsafe.Pointer(&r))
-	// Note: Apple seems unconcerned about overflow here. See
-	// https://developer.apple.com/library/content/qa/qa1398/_index.html
-	// Note also, numer == denom == 1 is common.
-	t := r.t
-	if r.numer != 1 {
-		t *= int64(r.numer)
-	}
-	if r.denom != 1 {
-		t /= int64(r.denom)
-	}
-	return t
-}
-func nanotime_trampoline()
-
 // walltime should be an internal detail,
 // but widely used packages access it using linkname.
 // Notable members of the hall of shame include:
@@ -640,6 +618,8 @@ func proc_regionfilename(pid int, address uint64, buf *byte, buflen int64) int32
 	return libcCall(unsafe.Pointer(abi.FuncPCABI0(proc_regionfilename_trampoline)), unsafe.Pointer(&args))
 }
 func proc_regionfilename_trampoline()
+
+func nanotime1() int64
 
 // Tell the linker that the libc_* functions are to be found
 // in a system library, with the libc_ prefix missing.

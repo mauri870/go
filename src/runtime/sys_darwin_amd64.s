@@ -87,29 +87,9 @@ TEXT runtime·mlock_trampoline(SB), NOSPLIT, $0
 
 GLOBL timebase<>(SB),NOPTR,$(machTimebaseInfo__size)
 
-TEXT runtime·nanotime_trampoline(SB),NOSPLIT,$0
-	MOVQ	DI, BX
-	CALL	libc_mach_absolute_time(SB)
-	MOVQ	AX, 0(BX)
-	MOVL	timebase<>+machTimebaseInfo_numer(SB), SI
-	MOVL	timebase<>+machTimebaseInfo_denom(SB), DI // atomic read
-	TESTL	DI, DI
-	JNE	initialized
-
-	SUBQ	$(machTimebaseInfo__size+15)/16*16, SP
-	MOVQ	SP, DI
-	CALL	libc_mach_timebase_info(SB)
-	MOVL	machTimebaseInfo_numer(SP), SI
-	MOVL	machTimebaseInfo_denom(SP), DI
-	ADDQ	$(machTimebaseInfo__size+15)/16*16, SP
-
-	MOVL	SI, timebase<>+machTimebaseInfo_numer(SB)
-	MOVL	DI, AX
-	XCHGL	AX, timebase<>+machTimebaseInfo_denom(SB) // atomic write
-
-initialized:
-	MOVL	SI, 8(BX)
-	MOVL	DI, 12(BX)
+TEXT runtime·nanotime1(SB),NOSPLIT,$0-8
+	MRS	CNTVCT_EL0, R0
+	MOVD 	R0, ret+0(FP)
 	RET
 
 TEXT runtime·walltime_trampoline(SB),NOSPLIT,$0

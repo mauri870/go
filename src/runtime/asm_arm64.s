@@ -129,6 +129,12 @@ TEXT runtime·mstart(SB),NOSPLIT|TOPFRAME,$0
 	BL	runtime·mstart0(SB)
 	RET // not reached
 
+// func cputicks() int64
+TEXT runtime·cputicks(SB),NOSPLIT,$0-8
+	MRS	CNTVCT_EL0, R0
+	MOVD 	R0, ret+0(FP)
+	RET
+
 /*
  *  go-routine
  */

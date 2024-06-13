@@ -17,9 +17,3 @@ func lwp_mcontext_init(mc *mcontextt, stk unsafe.Pointer, mp *m, gp *g, fn uintp
 	mc.__gregs[_REG_X1] = uint64(uintptr(unsafe.Pointer(mp.g0)))
 	mc.__gregs[_REG_X2] = uint64(fn)
 }
-
-//go:nosplit
-func cputicks() int64 {
-	// runtime·nanotime() is a poor approximation of CPU ticks that is enough for the profiler.
-	return nanotime()
-}
