@@ -108,6 +108,14 @@ func Xadduintptr(ptr *uintptr, delta uintptr) uintptr {
 
 //go:nosplit
 //go:noinline
+func Xchg8(ptr *uint8, new uint8) uint8 {
+	old := *ptr
+	*ptr = new
+	return old
+}
+
+//go:nosplit
+//go:noinline
 func Xchg(ptr *uint32, new uint32) uint32 {
 	old := *ptr
 	*ptr = new
