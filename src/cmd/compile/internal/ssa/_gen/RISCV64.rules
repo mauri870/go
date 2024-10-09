@@ -537,7 +537,7 @@
 (AtomicCompareAndSwap32 ptr old new mem) => (LoweredAtomicCas32 ptr (SignExt32to64 old) new mem)
 (AtomicCompareAndSwap64 ...) => (LoweredAtomicCas64 ...)
 
-(AtomicExchange(64|32) ...) => (LoweredAtomicExchange(64|32) ...)
+(AtomicExchange(64|32|8) ...) => (LoweredAtomicExchange(64|32|8) ...)
 
 // AtomicOr8(ptr,val)  => LoweredAtomicOr32(ptr&^3, uint32(val)<<((ptr&3)*8))
 (AtomicOr8 ptr val mem) =>

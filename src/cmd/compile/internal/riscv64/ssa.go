@@ -585,6 +585,11 @@ func ssaGenValue(s *ssagen.State, v *ssa.Value) {
 		p.To.Type = obj.TYPE_MEM
 		p.To.Reg = v.Args[0].Reg()
 		p.RegTo2 = v.Reg0()
+	case ssa.OpRISCV64LoweredAtomicExchange8:
+		// fence
+		// LR.B (Rarg0), Rout
+		// SC.B Rarg1, (Rarg0), Rout
+		//fence
 
 	case ssa.OpRISCV64LoweredAtomicCas32, ssa.OpRISCV64LoweredAtomicCas64:
 		// MOV  ZERO, Rout

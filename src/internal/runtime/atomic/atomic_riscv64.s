@@ -191,6 +191,35 @@ TEXT ·StoreRel64(SB), NOSPLIT, $0-16
 TEXT ·StoreReluintptr(SB), NOSPLIT, $0-16
 	JMP	·Store64(SB)
 
+// func Xchg8(ptr *uint8, new uint8) uint8
+TEXT ·Xchg8(SB), NOSPLIT, $0-17
+	MOV	ptr+0(FP), A0
+	MOVBU	new+8(FP), A1
+
+	AND	$3, A0, A2
+	AND	$-4, A0
+
+xchg8_loop:
+	LRW	(A0), A3                 // Load reserved the original word at the aligned address
+	MOVW A3, A4                    // Copy the original word to A4 for later use
+
+	// Extract the byte to be replaced and store it in A5
+	SRL	A3, A2, A3               // Shift the loaded word to get the relevant byte into the lowest bits
+	AND	$255, A3, A5             // Mask to get the old byte value in A5
+
+	// Insert the new byte into the word at the correct byte position
+	SLL	A1, A2, A1               // Shift the new byte to the correct byte position
+	AND	$255, A1                 // Ensure A1 is still an 8-bit value
+	OR	A1, A3, A3               // Replace the old byte in the word
+
+	// Try to store the updated word atomically
+	SCW	A3, (A0), A4             // Store conditional (atomic) the updated word
+	BNE	A4, ZERO, xchg8_loop     // If the store fails, retry
+
+	// Return the old byte
+	MOVB	A5, ret+16(FP)           // Store the old byte as the return value
+	RET
+
 // func Xchg(ptr *uint32, new uint32) uint32
 TEXT ·Xchg(SB), NOSPLIT, $0-20
 	MOV	ptr+0(FP), A0

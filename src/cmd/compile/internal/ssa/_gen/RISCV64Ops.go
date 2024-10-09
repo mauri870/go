@@ -369,6 +369,7 @@ func init() {
 
 		// Atomic exchange.
 		// store arg1 to *arg0. arg2=mem. returns <old content of *arg0, memory>.
+		{name: "LoweredAtomicExchange8", argLength: 3, reg: gpxchg, resultNotInArgs: true, faultOnNilArg0: true, hasSideEffects: true},
 		{name: "LoweredAtomicExchange32", argLength: 3, reg: gpxchg, resultNotInArgs: true, faultOnNilArg0: true, hasSideEffects: true},
 		{name: "LoweredAtomicExchange64", argLength: 3, reg: gpxchg, resultNotInArgs: true, faultOnNilArg0: true, hasSideEffects: true},
 

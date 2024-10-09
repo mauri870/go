@@ -71,6 +71,9 @@ func rewriteValueRISCV64(v *Value) bool {
 	case OpAtomicExchange64:
 		v.Op = OpRISCV64LoweredAtomicExchange64
 		return true
+	case OpAtomicExchange8:
+		v.Op = OpRISCV64LoweredAtomicExchange8
+		return true
 	case OpAtomicLoad32:
 		v.Op = OpRISCV64LoweredAtomicLoad32
 		return true
