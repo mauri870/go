@@ -147,6 +147,40 @@ TEXT ·Xadd64(SB), NOSPLIT, $0-24
 	SYNC
 	RET
 
+// uint8 Xchg8(ptr *uint8, new uint8)
+// Atomically:
+//	old := *ptr;
+//	*ptr = new;
+//	return old;
+TEXT ·Xchg8(SB), NOSPLIT, $0-17
+	MOVV	ptr+0(FP), R1
+	MOVBU	new+8(FP), R2
+
+	// Align ptr down to 4 bytes so we can use 32-bit load/store.
+	MOVV	$~3, R3
+	AND	R1, R3
+	// Compute val shift.
+#ifdef GOARCH_mips64
+	// Big endian.  ptr = ptr ^ 3
+	XOR	$3, R1
+#endif
+	// R4 = ((ptr & 3) * 8)
+	AND	$3, R1, R4
+	SLLV	$3, R4
+	// Shift val for aligned ptr. R2 = val << R4
+	SLLV	R4, R2
+
+	SYNC
+	MOVV	R2, R5
+	LL	(R3), R4
+	SC	R5, (R3)
+	BEQ	R5, -3(PC)
+	SYNC
+
+	MOVB	R4, ret+16(FP)
+	RET
+
+
 // uint32 Xchg(ptr *uint32, new uint32)
 // Atomically:
 //	old := *ptr;
