@@ -32,6 +32,7 @@ package obj
 
 import (
 	"bufio"
+	"bytes"
 	"cmd/internal/dwarf"
 	"cmd/internal/goobj"
 	"cmd/internal/objabi"
@@ -416,6 +417,7 @@ const (
 	AJMP
 	ANOP
 	APCALIGN
+	APCALIGNMAX // currently x86, amd64 and arm64
 	APCDATA
 	ARET
 	AGETCALLERPC
@@ -495,9 +497,10 @@ type FuncInfo struct {
 	WrapInfo           *LSym // for wrapper, info of wrapped function
 	JumpTables         []JumpTable
 
-	FuncInfoSym   *LSym
-	WasmImportSym *LSym
-	WasmImport    *WasmImport
+	FuncInfoSym *LSym
+
+	WasmImport *WasmImport
+	WasmExport *WasmExport
 
 	sehUnwindInfoSym *LSym
 }
@@ -608,45 +611,139 @@ type WasmImport struct {
 	// Name holds the WASM imported function name specified by the
 	// //go:wasmimport directive.
 	Name string
-	// Params holds the imported function parameter fields.
-	Params []WasmField
-	// Results holds the imported function result fields.
-	Results []WasmField
+
+	WasmFuncType // type of the imported function
+
+	// aux symbol to pass metadata to the linker, serialization of
+	// the fields above.
+	AuxSym *LSym
 }
 
-func (wi *WasmImport) CreateSym(ctxt *Link) *LSym {
-	var sym LSym
-
-	var b [8]byte
-	writeByte := func(x byte) {
-		sym.WriteBytes(ctxt, sym.Size, []byte{x})
+func (wi *WasmImport) CreateAuxSym() {
+	var b bytes.Buffer
+	wi.Write(&b)
+	p := b.Bytes()
+	wi.AuxSym = &LSym{
+		Type: objabi.SDATA, // doesn't really matter
+		P:    append([]byte(nil), p...),
+		Size: int64(len(p)),
 	}
+}
+
+func (wi *WasmImport) Write(w *bytes.Buffer) {
+	var b [8]byte
 	writeUint32 := func(x uint32) {
 		binary.LittleEndian.PutUint32(b[:], x)
-		sym.WriteBytes(ctxt, sym.Size, b[:4])
-	}
-	writeInt64 := func(x int64) {
-		binary.LittleEndian.PutUint64(b[:], uint64(x))
-		sym.WriteBytes(ctxt, sym.Size, b[:])
+		w.Write(b[:4])
 	}
 	writeString := func(s string) {
 		writeUint32(uint32(len(s)))
-		sym.WriteString(ctxt, sym.Size, len(s), s)
+		w.WriteString(s)
 	}
 	writeString(wi.Module)
 	writeString(wi.Name)
-	writeUint32(uint32(len(wi.Params)))
-	for _, f := range wi.Params {
-		writeByte(byte(f.Type))
-		writeInt64(f.Offset)
-	}
-	writeUint32(uint32(len(wi.Results)))
-	for _, f := range wi.Results {
-		writeByte(byte(f.Type))
-		writeInt64(f.Offset)
-	}
+	wi.WasmFuncType.Write(w)
+}
 
-	return &sym
+func (wi *WasmImport) Read(b []byte) {
+	readUint32 := func() uint32 {
+		x := binary.LittleEndian.Uint32(b)
+		b = b[4:]
+		return x
+	}
+	readString := func() string {
+		n := readUint32()
+		s := string(b[:n])
+		b = b[n:]
+		return s
+	}
+	wi.Module = readString()
+	wi.Name = readString()
+	wi.WasmFuncType.Read(b)
+}
+
+// WasmFuncType represents a WebAssembly (WASM) function type with
+// parameters and results translated into WASM types based on the Go function
+// declaration.
+type WasmFuncType struct {
+	// Params holds the function parameter fields.
+	Params []WasmField
+	// Results holds the function result fields.
+	Results []WasmField
+}
+
+func (ft *WasmFuncType) Write(w *bytes.Buffer) {
+	var b [8]byte
+	writeByte := func(x byte) {
+		w.WriteByte(x)
+	}
+	writeUint32 := func(x uint32) {
+		binary.LittleEndian.PutUint32(b[:], x)
+		w.Write(b[:4])
+	}
+	writeInt64 := func(x int64) {
+		binary.LittleEndian.PutUint64(b[:], uint64(x))
+		w.Write(b[:])
+	}
+	writeUint32(uint32(len(ft.Params)))
+	for _, f := range ft.Params {
+		writeByte(byte(f.Type))
+		writeInt64(f.Offset)
+	}
+	writeUint32(uint32(len(ft.Results)))
+	for _, f := range ft.Results {
+		writeByte(byte(f.Type))
+		writeInt64(f.Offset)
+	}
+}
+
+func (ft *WasmFuncType) Read(b []byte) {
+	readByte := func() byte {
+		x := b[0]
+		b = b[1:]
+		return x
+	}
+	readUint32 := func() uint32 {
+		x := binary.LittleEndian.Uint32(b)
+		b = b[4:]
+		return x
+	}
+	readInt64 := func() int64 {
+		x := binary.LittleEndian.Uint64(b)
+		b = b[8:]
+		return int64(x)
+	}
+	ft.Params = make([]WasmField, readUint32())
+	for i := range ft.Params {
+		ft.Params[i].Type = WasmFieldType(readByte())
+		ft.Params[i].Offset = int64(readInt64())
+	}
+	ft.Results = make([]WasmField, readUint32())
+	for i := range ft.Results {
+		ft.Results[i].Type = WasmFieldType(readByte())
+		ft.Results[i].Offset = int64(readInt64())
+	}
+}
+
+// WasmExport represents a WebAssembly (WASM) exported function with
+// parameters and results translated into WASM types based on the Go function
+// declaration.
+type WasmExport struct {
+	WasmFuncType
+
+	WrappedSym *LSym // the wrapped Go function
+	AuxSym     *LSym // aux symbol to pass metadata to the linker
+}
+
+func (we *WasmExport) CreateAuxSym() {
+	var b bytes.Buffer
+	we.WasmFuncType.Write(&b)
+	p := b.Bytes()
+	we.AuxSym = &LSym{
+		Type: objabi.SDATA, // doesn't really matter
+		P:    append([]byte(nil), p...),
+		Size: int64(len(p)),
+	}
 }
 
 type WasmField struct {
@@ -836,6 +933,9 @@ const (
 	// PkgInit indicates this is a compiler-generated package init func.
 	AttrPkgInit
 
+	// Linkname indicates this is a go:linkname'd symbol.
+	AttrLinkname
+
 	// attrABIBase is the value at which the ABI is encoded in
 	// Attribute. This must be last; all bits after this are
 	// assumed to be an ABI value.
@@ -865,6 +965,7 @@ func (a *Attribute) ContentAddressable() bool { return a.load()&AttrContentAddre
 func (a *Attribute) ABIWrapper() bool         { return a.load()&AttrABIWrapper != 0 }
 func (a *Attribute) IsPcdata() bool           { return a.load()&AttrPcdata != 0 }
 func (a *Attribute) IsPkgInit() bool          { return a.load()&AttrPkgInit != 0 }
+func (a *Attribute) IsLinkname() bool         { return a.load()&AttrLinkname != 0 }
 
 func (a *Attribute) Set(flag Attribute, value bool) {
 	for {
@@ -914,6 +1015,7 @@ var textAttrStrings = [...]struct {
 	{bit: AttrContentAddressable, s: ""},
 	{bit: AttrABIWrapper, s: "ABIWRAPPER"},
 	{bit: AttrPkgInit, s: "PKGINIT"},
+	{bit: AttrLinkname, s: "LINKNAME"},
 }
 
 // String formats a for printing in as part of a TEXT prog.
@@ -1042,6 +1144,7 @@ type Link struct {
 	InParallel    bool // parallel backend phase in effect
 	UseBASEntries bool // use Base Address Selection Entries in location lists and PC ranges
 	IsAsm         bool // is the source assembly language, which may contain surprising idioms (e.g., call tables)
+	Std           bool // is standard library package
 
 	// state for writing objects
 	Text []*LSym
@@ -1052,6 +1155,10 @@ type Link struct {
 	// add them to a separate list, sort at the end, and append it
 	// to Data.
 	constSyms []*LSym
+
+	// Windows SEH symbols are also data symbols that can be created
+	// concurrently.
+	SEHSyms []*LSym
 
 	// pkgIdx maps package path to index. The index is used for
 	// symbol reference in the object file.

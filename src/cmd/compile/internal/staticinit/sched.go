@@ -107,6 +107,20 @@ func (s *Schedule) tryStaticInit(n ir.Node) bool {
 	case ir.OAS:
 		n := n.(*ir.AssignStmt)
 		lhs, rhs = []ir.Node{n.X}, n.Y
+	case ir.OAS2:
+		// Usually OAS2 has been rewritten to separate OASes by types2.
+		// What's left here is "var a, b = tmp1, tmp2" as a result from rewriting
+		// "var a, b = f()" that needs type conversion, which is not static.
+		n := n.(*ir.AssignListStmt)
+		for _, rhs := range n.Rhs {
+			for rhs.Op() == ir.OCONVNOP {
+				rhs = rhs.(*ir.ConvExpr).X
+			}
+			if name, ok := rhs.(*ir.Name); !ok || !name.AutoTemp() {
+				base.FatalfAt(n.Pos(), "unexpected rhs, not an autotmp: %+v", rhs)
+			}
+		}
+		return false
 	case ir.OAS2DOTTYPE, ir.OAS2FUNC, ir.OAS2MAPR, ir.OAS2RECV:
 		n := n.(*ir.AssignListStmt)
 		if len(n.Lhs) < 2 || len(n.Rhs) != 1 {
@@ -375,16 +389,10 @@ func (s *Schedule) StaticAssign(l *ir.Name, loff int64, r ir.Node, typ *types.Ty
 
 	case ir.OCLOSURE:
 		r := r.(*ir.ClosureExpr)
-		if ir.IsTrivialClosure(r) {
+		if !r.Func.IsClosure() {
 			if base.Debug.Closure > 0 {
 				base.WarnfAt(r.Pos(), "closure converted to global")
 			}
-			// Issue 59680: if the closure we're looking at was produced
-			// by inlining, it could be marked as hidden, which we don't
-			// want (moving the func to a static init will effectively
-			// hide it from escape analysis). Mark as non-hidden here.
-			// so that it will participated in escape analysis.
-			r.Func.SetIsHiddenClosure(false)
 			// Closures with no captured variables are globals,
 			// so the assignment can be done at link time.
 			// TODO if roff != 0 { panic }
@@ -479,9 +487,6 @@ func (s *Schedule) initplan(n ir.Node) {
 			if a.Op() == ir.OKEY {
 				kv := a.(*ir.KeyExpr)
 				k = typecheck.IndexConst(kv.Key)
-				if k < 0 {
-					base.Fatalf("initplan arraylit: invalid index %v", kv.Key)
-				}
 				a = kv.Value
 			}
 			s.addvalue(p, k*n.Type().Elem().Size(), a)
@@ -660,7 +665,7 @@ func (s *Schedule) staticAssignInlinedCall(l *ir.Name, loff int64, call *ir.Inli
 		count[x.(*ir.Name)] = 0
 	}
 
-	hasNonTrivialClosure := false
+	hasClosure := false
 	ir.Visit(as2body.Rhs[0], func(n ir.Node) {
 		if name, ok := n.(*ir.Name); ok {
 			if c, ok := count[name]; ok {
@@ -668,13 +673,13 @@ func (s *Schedule) staticAssignInlinedCall(l *ir.Name, loff int64, call *ir.Inli
 			}
 		}
 		if clo, ok := n.(*ir.ClosureExpr); ok {
-			hasNonTrivialClosure = hasNonTrivialClosure || !ir.IsTrivialClosure(clo)
+			hasClosure = hasClosure || clo.Func.IsClosure()
 		}
 	})
 
-	// If there's a non-trivial closure, it has captured the param,
+	// If there's a closure, it has captured the param,
 	// so we can't substitute arg for param.
-	if hasNonTrivialClosure {
+	if hasClosure {
 		return false
 	}
 

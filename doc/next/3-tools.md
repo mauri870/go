@@ -2,25 +2,21 @@
 
 ### Go command {#go-command}
 
-Setting the `GOROOT_FINAL` environment variable no longer has an effect
-([#62047](https://go.dev/issue/62047)).
-Distributions that install the `go` command to a location other than
-`$GOROOT/bin/go` should install a symlink instead of relocating
-or copying the `go` binary.
-
-### Vet {#vet}
-
-The `go vet` subcommand now includes the
-[stdversion](https://beta.pkg.go.dev/golang.org/x/tools/go/analysis/passes/stdversion)
-analyzer, which flags references to symbols that are too new for the version
-of Go in effect in the referring file. (The effective version is determined
-by the `go` directive in the file's enclosing `go.mod` file, and
-by any [`//go:build` constraints](https://pkg.go.dev/cmd/go#hdr-Build_constraints)
-in the file.)
-
-For example, it will report a diagnostic for a reference to the
-`reflect.TypeFor` function (introduced in go1.22) from a file in a
-module whose go.mod file specifies `go 1.21`.
-
 ### Cgo {#cgo}
 
+Cgo currently refuses to compile calls to a C function which has multiple
+incompatible declarations. For instance, if `f` is declared as both `void f(int)`
+and `void f(double)`, cgo will report an error instead of possibly generating an
+incorrect call sequence for `f(0)`. New in this release is a better detector for
+this error condition when the incompatible declarations appear in different
+files. See [#67699](/issue/67699).
+
+### Vet
+
+The new `tests` analyzer reports common mistakes in declarations of
+tests, fuzzers, benchmarks, and examples in test packages, such as
+malformed names, incorrect signatures, or examples that document
+non-existent identifiers. Some of these mistakes may cause tests not
+to run.
+
+This analyzer is among the subset of analyzers that are run by `go test`.

@@ -152,7 +152,7 @@ const (
 	kindSock
 	// kindNoPoll means that we should not put the descriptor into
 	// non-blocking mode, because we know it is not a pipe or FIFO.
-	// Used by openFdAt and openDirNolog for directories.
+	// Used by openDirAt and openDirNolog for directories.
 	kindNoPoll
 )
 
@@ -260,7 +260,7 @@ func epipecheck(file *File, e error) {
 const DevNull = "/dev/null"
 
 // openFileNolog is the Unix implementation of OpenFile.
-// Changes here should be reflected in openFdAt and openDirNolog, if relevant.
+// Changes here should be reflected in openDirAt and openDirNolog, if relevant.
 func openFileNolog(name string, flag int, perm FileMode) (*File, error) {
 	setSticky := false
 	if !supportsCreateWithStickyBit && flag&O_CREATE != 0 && perm&ModeSticky != 0 {
@@ -306,7 +306,7 @@ func openDirNolog(name string) (*File, error) {
 		e error
 	)
 	ignoringEINTR(func() error {
-		r, s, e = open(name, O_RDONLY|syscall.O_CLOEXEC, 0)
+		r, s, e = open(name, O_RDONLY|syscall.O_CLOEXEC|syscall.O_DIRECTORY, 0)
 		return e
 	})
 	if e != nil {

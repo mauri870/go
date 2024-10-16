@@ -18,6 +18,7 @@ package reflect
 import (
 	"internal/abi"
 	"internal/goarch"
+	"runtime"
 	"strconv"
 	"sync"
 	"unicode"
@@ -241,6 +242,12 @@ type Type interface {
 	// It panics if t's Kind is not Uint, Uintptr, Uint8, Uint16, Uint32, or Uint64.
 	OverflowUint(x uint64) bool
 
+	// CanSeq reports whether a [Value] with this type can be iterated over using [Value.Seq].
+	CanSeq() bool
+
+	// CanSeq2 reports whether a [Value] with this type can be iterated over using [Value.Seq2].
+	CanSeq2() bool
+
 	common() *abi.Type
 	uncommon() *uncommonType
 }
@@ -256,7 +263,7 @@ type Type interface {
 /*
  * These data structures are known to the compiler (../cmd/compile/internal/reflectdata/reflect.go).
  * A few are known to ../runtime/type.go to convey to debuggers.
- * They are also known to ../runtime/type.go.
+ * They are also known to ../internal/abi/type.go.
  */
 
 // A Kind represents the specific kind of type that a [Type] represents.
@@ -380,11 +387,6 @@ func (t *interfaceType) common() *abi.Type {
 
 func (t *interfaceType) uncommon() *abi.UncommonType {
 	return t.Uncommon()
-}
-
-// mapType represents a map type.
-type mapType struct {
-	abi.MapType
 }
 
 // ptrType represents a pointer type.
@@ -517,6 +519,15 @@ func resolveTextOff(rtype unsafe.Pointer, off int32) unsafe.Pointer
 // It returns a new ID that can be used as a typeOff or textOff, and will
 // be resolved correctly. Implemented in the runtime package.
 //
+// addReflectOff should be an internal detail,
+// but widely used packages access it using linkname.
+// Notable members of the hall of shame include:
+//   - github.com/goplus/reflectx
+//
+// Do not remove or change the type signature.
+// See go.dev/issue/67401.
+//
+//go:linkname addReflectOff
 //go:noescape
 func addReflectOff(ptr unsafe.Pointer) int32
 
@@ -758,14 +769,6 @@ func (t *rtype) FieldByNameFunc(match func(string) bool) (StructField, bool) {
 	return tt.FieldByNameFunc(match)
 }
 
-func (t *rtype) Key() Type {
-	if t.Kind() != Map {
-		panic("reflect: Key of non-map type " + t.String())
-	}
-	tt := (*mapType)(unsafe.Pointer(t))
-	return toType(tt.Key)
-}
-
 func (t *rtype) Len() int {
 	if t.Kind() != Array {
 		panic("reflect: Len of non-array type " + t.String())
@@ -866,6 +869,62 @@ func (t *rtype) OverflowUint(x uint64) bool {
 	panic("reflect: OverflowUint of non-uint type " + t.String())
 }
 
+func (t *rtype) CanSeq() bool {
+	switch t.Kind() {
+	case Int8, Int16, Int32, Int64, Int, Uint8, Uint16, Uint32, Uint64, Uint, Uintptr, Array, Slice, Chan, String, Map:
+		return true
+	case Func:
+		return canRangeFunc(&t.t)
+	case Pointer:
+		return t.Elem().Kind() == Array
+	}
+	return false
+}
+
+func canRangeFunc(t *abi.Type) bool {
+	if t.Kind() != abi.Func {
+		return false
+	}
+	f := t.FuncType()
+	if f.InCount != 1 || f.OutCount != 0 {
+		return false
+	}
+	y := f.In(0)
+	if y.Kind() != abi.Func {
+		return false
+	}
+	yield := y.FuncType()
+	return yield.InCount == 1 && yield.OutCount == 1 && yield.Out(0).Kind() == abi.Bool
+}
+
+func (t *rtype) CanSeq2() bool {
+	switch t.Kind() {
+	case Array, Slice, String, Map:
+		return true
+	case Func:
+		return canRangeFunc2(&t.t)
+	case Pointer:
+		return t.Elem().Kind() == Array
+	}
+	return false
+}
+
+func canRangeFunc2(t *abi.Type) bool {
+	if t.Kind() != abi.Func {
+		return false
+	}
+	f := t.FuncType()
+	if f.InCount != 1 || f.OutCount != 0 {
+		return false
+	}
+	y := f.In(0)
+	if y.Kind() != abi.Func {
+		return false
+	}
+	yield := y.FuncType()
+	return yield.InCount == 2 && yield.OutCount == 1 && yield.Out(0).Kind() == abi.Bool
+}
+
 // add returns p+x.
 //
 // The whySafe string is ignored, so that the function still inlines
@@ -873,6 +932,17 @@ func (t *rtype) OverflowUint(x uint64) bool {
 // record why the addition is safe, which is to say why the addition
 // does not cause x to advance to the very end of p's allocation
 // and therefore point incorrectly at the next block in memory.
+//
+// add should be an internal detail (and is trivially copyable),
+// but widely used packages access it using linkname.
+// Notable members of the hall of shame include:
+//   - github.com/pinpoint-apm/pinpoint-go-agent
+//   - github.com/vmware/govmomi
+//
+// Do not remove or change the type signature.
+// See go.dev/issue/67401.
+//
+//go:linkname add
 func add(p unsafe.Pointer, x uintptr, whySafe string) unsafe.Pointer {
 	return unsafe.Pointer(uintptr(p) + x)
 }
@@ -1045,16 +1115,34 @@ func (t *structType) Field(i int) (f StructField) {
 	}
 	f.Offset = p.Offset
 
-	// NOTE(rsc): This is the only allocation in the interface
-	// presented by a reflect.Type. It would be nice to avoid,
-	// at least in the common cases, but we need to make sure
-	// that misbehaving clients of reflect cannot affect other
-	// uses of reflect. One possibility is CL 5371098, but we
-	// postponed that ugliness until there is a demonstrated
-	// need for the performance. This is issue 2320.
-	f.Index = []int{i}
+	// We can't safely use this optimization on js or wasi,
+	// which do not appear to support read-only data.
+	if i < 256 && runtime.GOOS != "js" && runtime.GOOS != "wasip1" {
+		staticuint64s := getStaticuint64s()
+		p := unsafe.Pointer(&(*staticuint64s)[i])
+		if unsafe.Sizeof(int(0)) == 4 && goarch.BigEndian {
+			p = unsafe.Add(p, 4)
+		}
+		f.Index = unsafe.Slice((*int)(p), 1)
+	} else {
+		// NOTE(rsc): This is the only allocation in the interface
+		// presented by a reflect.Type. It would be nice to avoid,
+		// but we need to make sure that misbehaving clients of
+		// reflect cannot affect other uses of reflect.
+		// One possibility is CL 5371098, but we postponed that
+		// ugliness until there is a demonstrated
+		// need for the performance. This is issue 2320.
+		f.Index = []int{i}
+	}
 	return
 }
+
+// getStaticuint64s returns a pointer to an array of 256 uint64 values,
+// defined in the runtime package in read-only memory.
+// staticuint64s[0] == 0, staticuint64s[1] == 1, and so forth.
+//
+//go:linkname getStaticuint64s runtime.getStaticuint64s
+func getStaticuint64s() *[256]uint64
 
 // TODO(gri): Should there be an error/bool indicator if the index
 // is wrong for FieldByIndex?
@@ -1570,6 +1658,15 @@ func haveIdenticalUnderlyingType(T, V *abi.Type, cmpTags bool) bool {
 // pointers, channels, maps, slices, and arrays.
 func typelinks() (sections []unsafe.Pointer, offset [][]int32)
 
+// rtypeOff should be an internal detail,
+// but widely used packages access it using linkname.
+// Notable members of the hall of shame include:
+//   - github.com/goccy/go-json
+//
+// Do not remove or change the type signature.
+// See go.dev/issue/67401.
+//
+//go:linkname rtypeOff
 func rtypeOff(section unsafe.Pointer, off int32) *abi.Type {
 	return (*abi.Type)(add(section, uintptr(off), "sizeof(rtype) > 0"))
 }
@@ -1578,6 +1675,17 @@ func rtypeOff(section unsafe.Pointer, off int32) *abi.Type {
 // the given string representation.
 // It may be empty (no known types with that string) or may have
 // multiple elements (multiple types with that string).
+//
+// typesByString should be an internal detail,
+// but widely used packages access it using linkname.
+// Notable members of the hall of shame include:
+//   - github.com/aristanetworks/goarista
+//   - fortio.org/log
+//
+// Do not remove or change the type signature.
+// See go.dev/issue/67401.
+//
+//go:linkname typesByString
 func typesByString(s string) []*abi.Type {
 	sections, offset := typelinks()
 	var ret []*abi.Type
@@ -1696,79 +1804,6 @@ func ChanOf(dir ChanDir, t Type) Type {
 	ch.Elem = typ
 
 	ti, _ := lookupCache.LoadOrStore(ckey, toRType(&ch.Type))
-	return ti.(Type)
-}
-
-// MapOf returns the map type with the given key and element types.
-// For example, if k represents int and e represents string,
-// MapOf(k, e) represents map[int]string.
-//
-// If the key type is not a valid map key type (that is, if it does
-// not implement Go's == operator), MapOf panics.
-func MapOf(key, elem Type) Type {
-	ktyp := key.common()
-	etyp := elem.common()
-
-	if ktyp.Equal == nil {
-		panic("reflect.MapOf: invalid key type " + stringFor(ktyp))
-	}
-
-	// Look in cache.
-	ckey := cacheKey{Map, ktyp, etyp, 0}
-	if mt, ok := lookupCache.Load(ckey); ok {
-		return mt.(Type)
-	}
-
-	// Look in known types.
-	s := "map[" + stringFor(ktyp) + "]" + stringFor(etyp)
-	for _, tt := range typesByString(s) {
-		mt := (*mapType)(unsafe.Pointer(tt))
-		if mt.Key == ktyp && mt.Elem == etyp {
-			ti, _ := lookupCache.LoadOrStore(ckey, toRType(tt))
-			return ti.(Type)
-		}
-	}
-
-	// Make a map type.
-	// Note: flag values must match those used in the TMAP case
-	// in ../cmd/compile/internal/reflectdata/reflect.go:writeType.
-	var imap any = (map[unsafe.Pointer]unsafe.Pointer)(nil)
-	mt := **(**mapType)(unsafe.Pointer(&imap))
-	mt.Str = resolveReflectName(newName(s, "", false, false))
-	mt.TFlag = 0
-	mt.Hash = fnv1(etyp.Hash, 'm', byte(ktyp.Hash>>24), byte(ktyp.Hash>>16), byte(ktyp.Hash>>8), byte(ktyp.Hash))
-	mt.Key = ktyp
-	mt.Elem = etyp
-	mt.Bucket = bucketOf(ktyp, etyp)
-	mt.Hasher = func(p unsafe.Pointer, seed uintptr) uintptr {
-		return typehash(ktyp, p, seed)
-	}
-	mt.Flags = 0
-	if ktyp.Size_ > abi.MapMaxKeyBytes {
-		mt.KeySize = uint8(goarch.PtrSize)
-		mt.Flags |= 1 // indirect key
-	} else {
-		mt.KeySize = uint8(ktyp.Size_)
-	}
-	if etyp.Size_ > abi.MapMaxElemBytes {
-		mt.ValueSize = uint8(goarch.PtrSize)
-		mt.Flags |= 2 // indirect value
-	} else {
-		mt.MapType.ValueSize = uint8(etyp.Size_)
-	}
-	mt.MapType.BucketSize = uint16(mt.Bucket.Size_)
-	if isReflexive(ktyp) {
-		mt.Flags |= 4
-	}
-	if needKeyUpdate(ktyp) {
-		mt.Flags |= 8
-	}
-	if hashMightPanic(ktyp) {
-		mt.Flags |= 16
-	}
-	mt.PtrToThis = 0
-
-	ti, _ := lookupCache.LoadOrStore(ckey, toRType(&mt.Type))
 	return ti.(Type)
 }
 
@@ -2002,69 +2037,6 @@ func hashMightPanic(t *abi.Type) bool {
 	default:
 		return false
 	}
-}
-
-func bucketOf(ktyp, etyp *abi.Type) *abi.Type {
-	if ktyp.Size_ > abi.MapMaxKeyBytes {
-		ktyp = ptrTo(ktyp)
-	}
-	if etyp.Size_ > abi.MapMaxElemBytes {
-		etyp = ptrTo(etyp)
-	}
-
-	// Prepare GC data if any.
-	// A bucket is at most bucketSize*(1+maxKeySize+maxValSize)+ptrSize bytes,
-	// or 2064 bytes, or 258 pointer-size words, or 33 bytes of pointer bitmap.
-	// Note that since the key and value are known to be <= 128 bytes,
-	// they're guaranteed to have bitmaps instead of GC programs.
-	var gcdata *byte
-	var ptrdata uintptr
-
-	size := abi.MapBucketCount*(1+ktyp.Size_+etyp.Size_) + goarch.PtrSize
-	if size&uintptr(ktyp.Align_-1) != 0 || size&uintptr(etyp.Align_-1) != 0 {
-		panic("reflect: bad size computation in MapOf")
-	}
-
-	if ktyp.Pointers() || etyp.Pointers() {
-		nptr := (abi.MapBucketCount*(1+ktyp.Size_+etyp.Size_) + goarch.PtrSize) / goarch.PtrSize
-		n := (nptr + 7) / 8
-
-		// Runtime needs pointer masks to be a multiple of uintptr in size.
-		n = (n + goarch.PtrSize - 1) &^ (goarch.PtrSize - 1)
-		mask := make([]byte, n)
-		base := uintptr(abi.MapBucketCount / goarch.PtrSize)
-
-		if ktyp.Pointers() {
-			emitGCMask(mask, base, ktyp, abi.MapBucketCount)
-		}
-		base += abi.MapBucketCount * ktyp.Size_ / goarch.PtrSize
-
-		if etyp.Pointers() {
-			emitGCMask(mask, base, etyp, abi.MapBucketCount)
-		}
-		base += abi.MapBucketCount * etyp.Size_ / goarch.PtrSize
-
-		word := base
-		mask[word/8] |= 1 << (word % 8)
-		gcdata = &mask[0]
-		ptrdata = (word + 1) * goarch.PtrSize
-
-		// overflow word must be last
-		if ptrdata != size {
-			panic("reflect: bad layout computation in MapOf")
-		}
-	}
-
-	b := &abi.Type{
-		Align_:   goarch.PtrSize,
-		Size_:    size,
-		Kind_:    abi.Struct,
-		PtrBytes: ptrdata,
-		GCData:   gcdata,
-	}
-	s := "bucket(" + stringFor(ktyp) + "," + stringFor(etyp) + ")"
-	b.Str = resolveReflectName(newName(s, "", false, false))
-	return b
 }
 
 func (t *rtype) gcSlice(begin, end uintptr) []byte {
@@ -2606,7 +2578,7 @@ func StructOf(fields []StructField) Type {
 	}
 
 	switch {
-	case len(fs) == 1 && !ifaceIndir(fs[0].Typ):
+	case len(fs) == 1 && !fs[0].Typ.IfaceIndir():
 		// structs of 1 direct iface type can be direct
 		typ.Kind_ |= abi.KindDirectIface
 	default:
@@ -2801,7 +2773,7 @@ func ArrayOf(length int, elem Type) Type {
 	}
 
 	switch {
-	case length == 1 && !ifaceIndir(typ):
+	case length == 1 && !typ.IfaceIndir():
 		// array of 1 direct iface type can be direct
 		array.Kind_ |= abi.KindDirectIface
 	default:
@@ -2825,6 +2797,19 @@ func appendVarint(x []byte, v uintptr) []byte {
 // a nil *rtype must be replaced by a nil Type, but in gccgo this
 // function takes care of ensuring that multiple *rtype for the same
 // type are coalesced into a single Type.
+//
+// toType should be an internal detail,
+// but widely used packages access it using linkname.
+// Notable members of the hall of shame include:
+//   - fortio.org/log
+//   - github.com/goccy/go-json
+//   - github.com/goccy/go-reflect
+//   - github.com/sohaha/zlsgo
+//
+// Do not remove or change the type signature.
+// See go.dev/issue/67401.
+//
+//go:linkname toType
 func toType(t *abi.Type) Type {
 	if t == nil {
 		return nil
@@ -2901,11 +2886,6 @@ func funcLayout(t *funcType, rcvr *abi.Type) (frametype *abi.Type, framePool *sy
 	})
 	lt := lti.(layoutType)
 	return lt.t, lt.framePool, lt.abid
-}
-
-// ifaceIndir reports whether t is stored indirectly in an interface value.
-func ifaceIndir(t *abi.Type) bool {
-	return t.Kind_&abi.KindDirectIface == 0
 }
 
 // Note: this type must agree with runtime.bitvector.

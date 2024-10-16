@@ -578,15 +578,22 @@ func ssaGenValue(s *ssagen.State, v *ssa.Value) {
 		p.To.Type = obj.TYPE_REG
 		p.To.Reg = v.Reg()
 	case ssa.OpARM64LoweredAtomicExchange64,
-		ssa.OpARM64LoweredAtomicExchange32:
+		ssa.OpARM64LoweredAtomicExchange32,
+		ssa.OpARM64LoweredAtomicExchange8:
 		// LDAXR	(Rarg0), Rout
 		// STLXR	Rarg1, (Rarg0), Rtmp
 		// CBNZ		Rtmp, -2(PC)
-		ld := arm64.ALDAXR
-		st := arm64.ASTLXR
-		if v.Op == ssa.OpARM64LoweredAtomicExchange32 {
+		var ld, st obj.As
+		switch v.Op {
+		case ssa.OpARM64LoweredAtomicExchange8:
+			ld = arm64.ALDAXRB
+			st = arm64.ASTLXRB
+		case ssa.OpARM64LoweredAtomicExchange32:
 			ld = arm64.ALDAXRW
 			st = arm64.ASTLXRW
+		case ssa.OpARM64LoweredAtomicExchange64:
+			ld = arm64.ALDAXR
+			st = arm64.ASTLXR
 		}
 		r0 := v.Args[0].Reg()
 		r1 := v.Args[1].Reg()
@@ -608,10 +615,16 @@ func ssaGenValue(s *ssagen.State, v *ssa.Value) {
 		p2.To.Type = obj.TYPE_BRANCH
 		p2.To.SetTarget(p)
 	case ssa.OpARM64LoweredAtomicExchange64Variant,
-		ssa.OpARM64LoweredAtomicExchange32Variant:
-		swap := arm64.ASWPALD
-		if v.Op == ssa.OpARM64LoweredAtomicExchange32Variant {
+		ssa.OpARM64LoweredAtomicExchange32Variant,
+		ssa.OpARM64LoweredAtomicExchange8Variant:
+		var swap obj.As
+		switch v.Op {
+		case ssa.OpARM64LoweredAtomicExchange8Variant:
+			swap = arm64.ASWPALB
+		case ssa.OpARM64LoweredAtomicExchange32Variant:
 			swap = arm64.ASWPALW
+		case ssa.OpARM64LoweredAtomicExchange64Variant:
+			swap = arm64.ASWPALD
 		}
 		r0 := v.Args[0].Reg()
 		r1 := v.Args[1].Reg()
@@ -781,23 +794,30 @@ func ssaGenValue(s *ssagen.State, v *ssa.Value) {
 		p3.To.Type = obj.TYPE_REG
 		p3.To.Reg = out
 
-	case ssa.OpARM64LoweredAtomicAnd8,
+	case ssa.OpARM64LoweredAtomicAnd64,
+		ssa.OpARM64LoweredAtomicOr64,
 		ssa.OpARM64LoweredAtomicAnd32,
-		ssa.OpARM64LoweredAtomicOr8,
-		ssa.OpARM64LoweredAtomicOr32:
-		// LDAXRB/LDAXRW (Rarg0), Rout
-		// AND/OR	Rarg1, Rout
-		// STLXRB/STLXRB Rout, (Rarg0), Rtmp
+		ssa.OpARM64LoweredAtomicOr32,
+		ssa.OpARM64LoweredAtomicAnd8,
+		ssa.OpARM64LoweredAtomicOr8:
+		// LDAXR[BW] (Rarg0), Rout
+		// AND/OR	Rarg1, Rout, tmp1
+		// STLXR[BW] tmp1, (Rarg0), Rtmp
 		// CBNZ		Rtmp, -3(PC)
-		ld := arm64.ALDAXRB
-		st := arm64.ASTLXRB
+		ld := arm64.ALDAXR
+		st := arm64.ASTLXR
 		if v.Op == ssa.OpARM64LoweredAtomicAnd32 || v.Op == ssa.OpARM64LoweredAtomicOr32 {
 			ld = arm64.ALDAXRW
 			st = arm64.ASTLXRW
 		}
+		if v.Op == ssa.OpARM64LoweredAtomicAnd8 || v.Op == ssa.OpARM64LoweredAtomicOr8 {
+			ld = arm64.ALDAXRB
+			st = arm64.ASTLXRB
+		}
 		r0 := v.Args[0].Reg()
 		r1 := v.Args[1].Reg()
 		out := v.Reg0()
+		tmp := v.RegTmp()
 		p := s.Prog(ld)
 		p.From.Type = obj.TYPE_MEM
 		p.From.Reg = r0
@@ -806,11 +826,12 @@ func ssaGenValue(s *ssagen.State, v *ssa.Value) {
 		p1 := s.Prog(v.Op.Asm())
 		p1.From.Type = obj.TYPE_REG
 		p1.From.Reg = r1
+		p1.Reg = out
 		p1.To.Type = obj.TYPE_REG
-		p1.To.Reg = out
+		p1.To.Reg = tmp
 		p2 := s.Prog(st)
 		p2.From.Type = obj.TYPE_REG
-		p2.From.Reg = out
+		p2.From.Reg = tmp
 		p2.To.Type = obj.TYPE_MEM
 		p2.To.Reg = r0
 		p2.RegTo2 = arm64.REGTMP
@@ -819,9 +840,14 @@ func ssaGenValue(s *ssagen.State, v *ssa.Value) {
 		p3.From.Reg = arm64.REGTMP
 		p3.To.Type = obj.TYPE_BRANCH
 		p3.To.SetTarget(p)
+
 	case ssa.OpARM64LoweredAtomicAnd8Variant,
-		ssa.OpARM64LoweredAtomicAnd32Variant:
-		atomic_clear := arm64.ALDCLRALW
+		ssa.OpARM64LoweredAtomicAnd32Variant,
+		ssa.OpARM64LoweredAtomicAnd64Variant:
+		atomic_clear := arm64.ALDCLRALD
+		if v.Op == ssa.OpARM64LoweredAtomicAnd32Variant {
+			atomic_clear = arm64.ALDCLRALW
+		}
 		if v.Op == ssa.OpARM64LoweredAtomicAnd8Variant {
 			atomic_clear = arm64.ALDCLRALB
 		}
@@ -836,7 +862,7 @@ func ssaGenValue(s *ssagen.State, v *ssa.Value) {
 		p.To.Type = obj.TYPE_REG
 		p.To.Reg = arm64.REGTMP
 
-		// LDCLRALW  Rtemp, (Rarg0), Rout
+		// LDCLRAL[BDW]  Rtemp, (Rarg0), Rout
 		p1 := s.Prog(atomic_clear)
 		p1.From.Type = obj.TYPE_REG
 		p1.From.Reg = arm64.REGTMP
@@ -844,16 +870,13 @@ func ssaGenValue(s *ssagen.State, v *ssa.Value) {
 		p1.To.Reg = r0
 		p1.RegTo2 = out
 
-		// AND       Rarg1, Rout
-		p2 := s.Prog(arm64.AAND)
-		p2.From.Type = obj.TYPE_REG
-		p2.From.Reg = r1
-		p2.To.Type = obj.TYPE_REG
-		p2.To.Reg = out
-
 	case ssa.OpARM64LoweredAtomicOr8Variant,
-		ssa.OpARM64LoweredAtomicOr32Variant:
-		atomic_or := arm64.ALDORALW
+		ssa.OpARM64LoweredAtomicOr32Variant,
+		ssa.OpARM64LoweredAtomicOr64Variant:
+		atomic_or := arm64.ALDORALD
+		if v.Op == ssa.OpARM64LoweredAtomicOr32Variant {
+			atomic_or = arm64.ALDORALW
+		}
 		if v.Op == ssa.OpARM64LoweredAtomicOr8Variant {
 			atomic_or = arm64.ALDORALB
 		}
@@ -861,20 +884,13 @@ func ssaGenValue(s *ssagen.State, v *ssa.Value) {
 		r1 := v.Args[1].Reg()
 		out := v.Reg0()
 
-		// LDORALW  Rarg1, (Rarg0), Rout
+		// LDORAL[BDW]  Rarg1, (Rarg0), Rout
 		p := s.Prog(atomic_or)
 		p.From.Type = obj.TYPE_REG
 		p.From.Reg = r1
 		p.To.Type = obj.TYPE_MEM
 		p.To.Reg = r0
 		p.RegTo2 = out
-
-		// ORR       Rarg1, Rout
-		p2 := s.Prog(arm64.AORR)
-		p2.From.Type = obj.TYPE_REG
-		p2.From.Reg = r1
-		p2.To.Type = obj.TYPE_REG
-		p2.To.Reg = out
 
 	case ssa.OpARM64MOVBreg,
 		ssa.OpARM64MOVBUreg,

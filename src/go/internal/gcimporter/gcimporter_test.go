@@ -7,7 +7,6 @@ package gcimporter_test
 import (
 	"bytes"
 	"fmt"
-	"internal/godebug"
 	"internal/testenv"
 	"os"
 	"os/exec"
@@ -100,12 +99,7 @@ func TestImportTestdata(t *testing.T) {
 		"exports.go":  {"go/ast", "go/token"},
 		"generics.go": nil,
 	}
-	if true /* was goexperiment.Unified */ {
-		// TODO(mdempsky): Fix test below to flatten the transitive
-		// Package.Imports graph. Unified IR is more precise about
-		// recreating the package import graph.
-		testfiles["exports.go"] = []string{"go/ast"}
-	}
+	testfiles["exports.go"] = []string{"go/ast"}
 
 	for testfile, wantImports := range testfiles {
 		tmpdir := mktmpdir(t)
@@ -204,16 +198,6 @@ func TestImportTypeparamTests(t *testing.T) {
 				}
 				want := types.ObjectString(checkedObj, types.RelativeTo(checked))
 				want = sanitizeObjectString(want)
-
-				// TODO(golang/go#66859): investigate and reenable these tests,
-				// which fail with gotypesalias=1, soon to be the default.
-				if godebug.New("gotypesalias").Value() != "0" {
-					symbol := name + " in " + filepath.Base(filename)
-					switch symbol {
-					case "Eint2 in struct.go", "A in issue50259.go":
-						t.Skipf("%s requires gotypesalias=1", symbol)
-					}
-				}
 
 				if got != want {
 					t.Errorf("imported %q as %q, want %q", name, got, want)

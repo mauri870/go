@@ -6,6 +6,7 @@ package concurrent
 
 import (
 	"fmt"
+	"internal/abi"
 	"math"
 	"runtime"
 	"strconv"
@@ -28,6 +29,23 @@ func TestHashTrieMapBadHash(t *testing.T) {
 		m := NewHashTrieMap[string, int]()
 		m.keyHash = func(_ unsafe.Pointer, _ uintptr) uintptr {
 			return 0
+		}
+		return m
+	})
+}
+
+func TestHashTrieMapTruncHash(t *testing.T) {
+	testHashTrieMap(t, func() *HashTrieMap[string, int] {
+		// Stub out the good hash function with a different terrible one
+		// (truncated hash). Everything should still work as expected.
+		// This is useful to test independently to catch issues with
+		// near collisions, where only the last few bits of the hash differ.
+		m := NewHashTrieMap[string, int]()
+		var mx map[string]int
+		mapType := abi.TypeOf(mx).MapType()
+		hasher := mapType.Hasher
+		m.keyHash = func(p unsafe.Pointer, n uintptr) uintptr {
+			return hasher(p, n) & ((uintptr(1) << 4) - 1)
 		}
 		return m
 	})
@@ -119,17 +137,17 @@ func testHashTrieMap(t *testing.T, newMap func() *HashTrieMap[string, int]) {
 			}
 		}
 	})
-	t.Run("Enumerate", func(t *testing.T) {
+	t.Run("All", func(t *testing.T) {
 		m := newMap()
 
-		testEnumerate(t, m, testDataMap(testData[:]), func(_ string, _ int) bool {
+		testAll(t, m, testDataMap(testData[:]), func(_ string, _ int) bool {
 			return true
 		})
 	})
-	t.Run("EnumerateDelete", func(t *testing.T) {
+	t.Run("AllDelete", func(t *testing.T) {
 		m := newMap()
 
-		testEnumerate(t, m, testDataMap(testData[:]), func(s string, i int) bool {
+		testAll(t, m, testDataMap(testData[:]), func(s string, i int) bool {
 			expectDeleted(t, s, i)(m.CompareAndDelete(s, i))
 			return true
 		})
@@ -200,12 +218,12 @@ func testHashTrieMap(t *testing.T, newMap func() *HashTrieMap[string, int]) {
 	})
 }
 
-func testEnumerate[K, V comparable](t *testing.T, m *HashTrieMap[K, V], testData map[K]V, yield func(K, V) bool) {
+func testAll[K, V comparable](t *testing.T, m *HashTrieMap[K, V], testData map[K]V, yield func(K, V) bool) {
 	for k, v := range testData {
 		expectStored(t, k, v)(m.LoadOrStore(k, v))
 	}
 	visited := make(map[K]int)
-	m.Enumerate(func(key K, got V) bool {
+	m.All()(func(key K, got V) bool {
 		want, ok := testData[key]
 		if !ok {
 			t.Errorf("unexpected key %v in map", key)

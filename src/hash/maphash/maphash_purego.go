@@ -8,7 +8,9 @@ package maphash
 
 import (
 	"crypto/rand"
+	"internal/byteorder"
 	"math/bits"
+	"reflect"
 )
 
 func rthash(buf []byte, seed uint64) uint64 {
@@ -25,7 +27,7 @@ func rthashString(s string, state uint64) uint64 {
 func randUint64() uint64 {
 	buf := make([]byte, 8)
 	_, _ = rand.Read(buf)
-	return leUint64(buf)
+	return byteorder.LeUint64(buf)
 }
 
 // This is a port of wyhash implementation in runtime/hash64.go,
@@ -80,11 +82,11 @@ func r3(p []byte, k uint64) uint64 {
 }
 
 func r4(p []byte) uint64 {
-	return uint64(leUint32(p))
+	return uint64(byteorder.LeUint32(p))
 }
 
 func r8(p []byte) uint64 {
-	return leUint64(p)
+	return byteorder.LeUint64(p)
 }
 
 func mix(a, b uint64) uint64 {
@@ -92,13 +94,7 @@ func mix(a, b uint64) uint64 {
 	return hi ^ lo
 }
 
-func leUint32(b []byte) uint32 {
-	_ = b[3] // bounds check hint to compiler; see golang.org/issue/14808
-	return uint32(b[0]) | uint32(b[1])<<8 | uint32(b[2])<<16 | uint32(b[3])<<24
-}
-
-func leUint64(b []byte) uint64 {
-	_ = b[7] // bounds check hint to compiler; see golang.org/issue/14808
-	return uint64(b[0]) | uint64(b[1])<<8 | uint64(b[2])<<16 | uint64(b[3])<<24 |
-		uint64(b[4])<<32 | uint64(b[5])<<40 | uint64(b[6])<<48 | uint64(b[7])<<56
+func comparableF[T comparable](h *Hash, v T) {
+	vv := reflect.ValueOf(v)
+	appendT(h, vv)
 }

@@ -29,8 +29,8 @@ import (
 	"cmd/go/internal/cfg"
 	"cmd/go/internal/fsys"
 	"cmd/go/internal/imports"
-	"cmd/go/internal/par"
 	"cmd/go/internal/str"
+	"cmd/internal/par"
 )
 
 // enabled is used to flag off the behavior of the module index on tip.
@@ -147,7 +147,8 @@ func GetPackage(modroot, pkgdir string) (*IndexPackage, error) {
 // using the index, for instance because the index is disabled, or the package
 // is not in a module.
 func GetModule(modroot string) (*Module, error) {
-	if !enabled || cache.DefaultDir() == "off" {
+	dir, _ := cache.DefaultDir()
+	if !enabled || dir == "off" {
 		return nil, errDisabled
 	}
 	if modroot == "" {

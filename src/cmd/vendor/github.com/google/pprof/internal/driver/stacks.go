@@ -19,7 +19,7 @@ import (
 	"html/template"
 	"net/http"
 
-	"github.com/google/pprof/internal/report"
+	"github.com/google/pprof/internal/measurement"
 )
 
 // stackView generates the flamegraph view.
@@ -50,9 +50,9 @@ func (ui *webInterface) stackView(w http.ResponseWriter, req *http.Request) {
 	}
 	nodes[0] = "" // root is not a real node
 
-	_, legend := report.TextItems(rpt)
-	ui.render(w, req, "stacks", rpt, errList, legend, webArgs{
-		Stacks: template.JS(b),
-		Nodes:  nodes,
+	ui.render(w, req, "stacks", rpt, errList, stacks.Legend(), webArgs{
+		Stacks:   template.JS(b),
+		Nodes:    nodes,
+		UnitDefs: measurement.UnitTypes,
 	})
 }

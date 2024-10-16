@@ -190,7 +190,7 @@ func operandString(x *operand, qf Qualifier) string {
 			}
 			buf.WriteString(intro)
 			WriteType(&buf, x.typ, qf)
-			if tpar, _ := x.typ.(*TypeParam); tpar != nil {
+			if tpar, _ := Unalias(x.typ).(*TypeParam); tpar != nil {
 				buf.WriteString(" constrained by ")
 				WriteType(&buf, tpar.bound, qf) // do not compute interface type sets here
 				// If we have the type set and it's empty, say so for better error messages.
@@ -264,7 +264,9 @@ func (x *operand) assignableTo(check *Checker, T Type, cause *string) (bool, Cod
 		return true, 0 // avoid spurious errors
 	}
 
-	V := x.typ
+	origT := T
+	V := Unalias(x.typ)
+	T = Unalias(T)
 
 	// x's type is identical to T
 	if Identical(V, T) {
@@ -309,7 +311,7 @@ func (x *operand) assignableTo(check *Checker, T Type, cause *string) (bool, Cod
 	// Also handle the case where T is a pointer to an interface so that we get
 	// the Checker.implements error cause.
 	if _, ok := Tu.(*Interface); ok && Tp == nil || isInterfacePtr(Tu) {
-		if check.implements(x.Pos(), V, T, false, cause) {
+		if check.implements(V, T, false, cause) {
 			return true, 0
 		}
 		// V doesn't implement T but V may still be assignable to T if V
@@ -324,7 +326,7 @@ func (x *operand) assignableTo(check *Checker, T Type, cause *string) (bool, Cod
 
 	// If V is an interface, check if a missing type assertion is the problem.
 	if Vi, _ := Vu.(*Interface); Vi != nil && Vp == nil {
-		if check.implements(x.Pos(), T, V, false, nil) {
+		if check.implements(T, V, false, nil) {
 			// T implements V, so give hint about type assertion.
 			if cause != nil {
 				*cause = "need type assertion"
@@ -390,7 +392,7 @@ func (x *operand) assignableTo(check *Checker, T Type, cause *string) (bool, Cod
 			x.typ = V.typ
 			ok, code = x.assignableTo(check, T, cause)
 			if !ok {
-				errorf("cannot assign %s (in %s) to %s", V.typ, Vp, T)
+				errorf("cannot assign %s (in %s) to %s", V.typ, Vp, origT)
 				return false
 			}
 			return true

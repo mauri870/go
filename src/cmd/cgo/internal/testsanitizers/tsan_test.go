@@ -24,7 +24,7 @@ func TestTSAN(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The msan tests require support for the -msan option.
+	// The tsan tests require support for the -tsan option.
 	if !compilerRequiredTsanVersion(goos, goarch) {
 		t.Skipf("skipping on %s/%s; compiler version for -tsan option is too old.", goos, goarch)
 	}
@@ -54,6 +54,7 @@ func TestTSAN(t *testing.T) {
 		{src: "tsan12.go", needsRuntime: true},
 		{src: "tsan13.go", needsRuntime: true},
 		{src: "tsan14.go", needsRuntime: true},
+		{src: "tsan15.go", needsRuntime: true},
 	}
 	for _, tc := range cases {
 		tc := tc

@@ -17,6 +17,7 @@ import (
 	"go/token"
 	"io"
 	"math/big"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -131,6 +132,9 @@ func ImportData(imports map[string]*types2.Package, data, path string) (pkg *typ
 	for i, pt := range predeclared {
 		p.typCache[uint64(i)] = pt
 	}
+	// Special handling for "any", whose representation may be changed by the
+	// gotypesalias GODEBUG variable.
+	p.typCache[uint64(len(predeclared))] = types2.Universe.Lookup("any").Type()
 
 	pkgList := make([]*types2.Package, r.uint64())
 	for i := range pkgList {
@@ -185,7 +189,9 @@ func ImportData(imports map[string]*types2.Package, data, path string) (pkg *typ
 	}
 	// record all referenced packages as imports
 	list := append(([]*types2.Package)(nil), pkgList[1:]...)
-	sort.Sort(byPath(list))
+	slices.SortFunc(list, func(a, b *types2.Package) int {
+		return strings.Compare(a.Path(), b.Path())
+	})
 	localpkg.SetImports(list)
 
 	// package was imported completely and without errors
@@ -318,10 +324,14 @@ func (r *importReader) obj(name string) {
 	pos := r.pos()
 
 	switch tag {
-	case 'A':
-		typ := r.typ()
-
-		r.declare(types2.NewTypeName(pos, r.currPkg, name, typ))
+	case 'A', 'B':
+		var tparams []*types2.TypeParam
+		if tag == 'B' {
+			tparams = r.tparamList()
+		}
+		rhs := r.typ()
+		const enabled = true // This is now always enabled within the compiler.
+		r.declare(newAliasTypeName(enabled, pos, r.currPkg, name, rhs, tparams))
 
 	case 'C':
 		typ, val := r.value()

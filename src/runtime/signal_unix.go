@@ -9,7 +9,7 @@ package runtime
 import (
 	"internal/abi"
 	"internal/runtime/atomic"
-	"runtime/internal/sys"
+	"internal/runtime/sys"
 	"unsafe"
 )
 
@@ -405,7 +405,7 @@ func sigFetchG(c *sigctxt) *g {
 			// bottom of the signal stack. Fetch from there.
 			// TODO: in efence mode, stack is sysAlloc'd, so this wouldn't
 			// work.
-			sp := getcallersp()
+			sp := sys.GetCallerSP()
 			s := spanOf(sp)
 			if s != nil && s.state.get() == mSpanManual && s.base() < sp && sp < s.limit {
 				gp := *(**g)(unsafe.Pointer(s.base()))
@@ -479,7 +479,7 @@ func sigtrampgo(sig uint32, info *siginfo, ctx unsafe.Pointer) {
 	var gsignalStack gsignalStack
 	setStack := adjustSignalStack(sig, gp.m, &gsignalStack)
 	if setStack {
-		gp.m.gsignal.stktopsp = getcallersp()
+		gp.m.gsignal.stktopsp = sys.GetCallerSP()
 	}
 
 	if gp.stackguard0 == stackFork {
@@ -605,6 +605,19 @@ var crashing atomic.Int32
 var testSigtrap func(info *siginfo, ctxt *sigctxt, gp *g) bool
 var testSigusr1 func(gp *g) bool
 
+// sigsysIgnored is non-zero if we are currently ignoring SIGSYS. See issue #69065.
+var sigsysIgnored uint32
+
+//go:linkname ignoreSIGSYS os.ignoreSIGSYS
+func ignoreSIGSYS() {
+	atomic.Store(&sigsysIgnored, 1)
+}
+
+//go:linkname restoreSIGSYS os.restoreSIGSYS
+func restoreSIGSYS() {
+	atomic.Store(&sigsysIgnored, 0)
+}
+
 // sighandler is invoked when a signal occurs. The global g will be
 // set to a gsignal goroutine and we will be running on the alternate
 // signal stack. The parameter gp will be the value of the global g
@@ -715,6 +728,10 @@ func sighandler(sig uint32, info *siginfo, ctxt unsafe.Pointer, gp *g) {
 		return
 	}
 
+	if sig == _SIGSYS && c.sigFromSeccomp() && atomic.Load(&sigsysIgnored) != 0 {
+		return
+	}
+
 	if flags&_SigKill != 0 {
 		dieFromSignal(sig)
 	}
@@ -752,6 +769,9 @@ func sighandler(sig uint32, info *siginfo, ctxt unsafe.Pointer, gp *g) {
 	}
 
 	if docrash {
+		var crashSleepMicros uint32 = 5000
+		var watchdogTimeoutMicros uint32 = 2000 * crashSleepMicros
+
 		isCrashThread := false
 		if crashing.CompareAndSwap(0, 1) {
 			isCrashThread = true
@@ -769,19 +789,35 @@ func sighandler(sig uint32, info *siginfo, ctxt unsafe.Pointer, gp *g) {
 			// The faulting m is crashing first so it is the faulting thread in the core dump (see issue #63277):
 			// in expected operation, the first m will wait until the last m has received the SIGQUIT,
 			// and then run crash/exit and the process is gone.
-			// However, if it spends more than 5 seconds to send SIGQUIT to all ms,
-			// any of ms may crash/exit the process after waiting for 5 seconds.
+			// However, if it spends more than 10 seconds to send SIGQUIT to all ms,
+			// any of ms may crash/exit the process after waiting for 10 seconds.
 			print("\n-----\n\n")
 			raiseproc(_SIGQUIT)
 		}
 		if isCrashThread {
-			i := 0
-			for (crashing.Load() < mcount()-int32(extraMLength.Load())) && i < 10 {
-				i++
-				usleep(500 * 1000)
+			// Sleep for short intervals so that we can crash quickly after all ms have received SIGQUIT.
+			// Reset the timer whenever we see more ms received SIGQUIT
+			// to make it have enough time to crash (see issue #64752).
+			timeout := watchdogTimeoutMicros
+			maxCrashing := crashing.Load()
+			for timeout > 0 && (crashing.Load() < mcount()-int32(extraMLength.Load())) {
+				usleep(crashSleepMicros)
+				timeout -= crashSleepMicros
+
+				if c := crashing.Load(); c > maxCrashing {
+					// We make progress, so reset the watchdog timeout
+					maxCrashing = c
+					timeout = watchdogTimeoutMicros
+				}
 			}
 		} else {
-			usleep(5 * 1000 * 1000)
+			maxCrashing := int32(0)
+			c := crashing.Load()
+			for c > maxCrashing {
+				maxCrashing = c
+				usleep(watchdogTimeoutMicros)
+				c = crashing.Load()
+			}
 		}
 		printDebugLog()
 		crash()
@@ -953,10 +989,17 @@ func raisebadsignal(sig uint32, c *sigctxt) {
 	}
 
 	var handler uintptr
+	var flags int32
 	if sig >= _NSIG {
 		handler = _SIG_DFL
 	} else {
 		handler = atomic.Loaduintptr(&fwdSig[sig])
+		flags = sigtable[sig].flags
+	}
+
+	// If the signal is ignored, raising the signal is no-op.
+	if handler == _SIG_IGN || (handler == _SIG_DFL && flags&_SigIgn != 0) {
+		return
 	}
 
 	// Reset the signal handler and raise the signal.

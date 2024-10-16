@@ -21,17 +21,6 @@ func jumpLoong64(word string) bool {
 	return false
 }
 
-// IsLoong64CMP reports whether the op (as defined by an loong64.A* constant) is
-// one of the CMP instructions that require special handling.
-func IsLoong64CMP(op obj.As) bool {
-	switch op {
-	case loong64.ACMPEQF, loong64.ACMPEQD, loong64.ACMPGEF, loong64.ACMPGED,
-		loong64.ACMPGTF, loong64.ACMPGTD:
-		return true
-	}
-	return false
-}
-
 // IsLoong64MUL reports whether the op (as defined by an loong64.A* constant) is
 // one of the MUL/DIV/REM instructions that require special handling.
 func IsLoong64MUL(op obj.As) bool {
@@ -53,6 +42,10 @@ func IsLoong64RDTIME(op obj.As) bool {
 		return true
 	}
 	return false
+}
+
+func IsLoong64AMO(op obj.As) bool {
+	return loong64.IsAtomicInst(op)
 }
 
 func loong64RegisterNumber(name string, n int16) (int16, bool) {

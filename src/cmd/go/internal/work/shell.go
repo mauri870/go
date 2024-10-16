@@ -10,8 +10,9 @@ import (
 	"cmd/go/internal/cache"
 	"cmd/go/internal/cfg"
 	"cmd/go/internal/load"
-	"cmd/go/internal/par"
 	"cmd/go/internal/str"
+	"cmd/internal/par"
+	"cmd/internal/pathcache"
 	"errors"
 	"fmt"
 	"internal/lazyregexp"
@@ -114,7 +115,8 @@ func (sh *Shell) moveOrCopyFile(dst, src string, perm fs.FileMode, force bool) e
 	// Otherwise fall back to standard copy.
 
 	// If the source is in the build cache, we need to copy it.
-	if strings.HasPrefix(src, cache.DefaultDir()) {
+	dir, _ := cache.DefaultDir()
+	if strings.HasPrefix(src, dir) {
 		return sh.CopyFile(dst, src, perm, force)
 	}
 
@@ -605,7 +607,7 @@ func (sh *Shell) runOut(dir string, env []string, cmdargs ...any) ([]byte, error
 	}
 
 	var buf bytes.Buffer
-	path, err := cfg.LookPath(cmdline[0])
+	path, err := pathcache.LookPath(cmdline[0])
 	if err != nil {
 		return nil, err
 	}

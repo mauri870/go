@@ -16,6 +16,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"internal/buildcfg"
+	"math"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -307,7 +309,7 @@ var (
 	pe64        int
 	dr          *Dll
 
-	dexport = make([]loader.Sym, 0, 1024)
+	dexport []loader.Sym
 )
 
 // peStringTable is a COFF string table.
@@ -1390,7 +1392,7 @@ func initdynexport(ctxt *Link) {
 		if !ldr.AttrReachable(s) || !ldr.AttrCgoExportDynamic(s) {
 			continue
 		}
-		if len(dexport)+1 > cap(dexport) {
+		if len(dexport) >= math.MaxUint16 {
 			ctxt.Errorf(s, "pe dynexport table is full")
 			errorexit()
 		}
@@ -1489,10 +1491,6 @@ type peBaseRelocBlock struct {
 // it can be sorted.
 type pePages []uint32
 
-func (p pePages) Len() int           { return len(p) }
-func (p pePages) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
-func (p pePages) Less(i, j int) bool { return p[i] < p[j] }
-
 // A PE base relocation table is a list of blocks, where each block
 // contains relocation information for a single page. The blocks
 // must be emitted in order of page virtual address.
@@ -1546,10 +1544,23 @@ func (rt *peBaseRelocTable) write(ctxt *Link) {
 	out := ctxt.Out
 
 	// sort the pages array
-	sort.Sort(rt.pages)
+	slices.Sort(rt.pages)
+
+	// .reloc section must be 32-bit aligned
+	if out.Offset()&3 != 0 {
+		Errorf(nil, "internal error, start of .reloc not 32-bit aligned")
+	}
 
 	for _, p := range rt.pages {
 		b := rt.blocks[p]
+
+		// Add a dummy entry at the end of the list if we have an
+		// odd number of entries, so as to ensure that the next
+		// block starts on a 32-bit boundary (see issue 68260).
+		if len(b.entries)&1 != 0 {
+			b.entries = append(b.entries, peBaseRelocEntry{})
+		}
+
 		const sizeOfPEbaseRelocBlock = 8 // 2 * sizeof(uint32)
 		blockSize := uint32(sizeOfPEbaseRelocBlock + len(b.entries)*2)
 		out.Write32(p)

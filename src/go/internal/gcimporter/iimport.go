@@ -19,7 +19,7 @@ import (
 	"io"
 	"math"
 	"math/big"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -77,6 +77,7 @@ const (
 	typeParamType
 	instanceType
 	unionType
+	aliasType
 )
 
 // iImportData imports a package from the serialized package data
@@ -145,6 +146,9 @@ func iImportData(fset *token.FileSet, imports map[string]*types.Package, dataRea
 	for i, pt := range predeclared {
 		p.typCache[uint64(i)] = pt
 	}
+	// Special handling for "any", whose representation may be changed by the
+	// gotypesalias GODEBUG variable.
+	p.typCache[uint64(len(predeclared))] = types.Universe.Lookup("any").Type()
 
 	pkgList := make([]*types.Package, r.uint64())
 	for i := range pkgList {
@@ -182,7 +186,7 @@ func iImportData(fset *token.FileSet, imports map[string]*types.Package, dataRea
 	for name := range p.pkgIndex[localpkg] {
 		names = append(names, name)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	for _, name := range names {
 		p.doDecl(localpkg, name)
 	}
@@ -202,7 +206,9 @@ func iImportData(fset *token.FileSet, imports map[string]*types.Package, dataRea
 
 	// record all referenced packages as imports
 	list := append(([]*types.Package)(nil), pkgList[1:]...)
-	sort.Sort(byPath(list))
+	slices.SortFunc(list, func(a, b *types.Package) int {
+		return strings.Compare(a.Path(), b.Path())
+	})
 	localpkg.SetImports(list)
 
 	// package was imported completely and without errors
@@ -328,10 +334,13 @@ func (r *importReader) obj(name string) {
 	pos := r.pos()
 
 	switch tag {
-	case 'A':
-		typ := r.typ()
-
-		r.declare(types.NewTypeName(pos, r.currPkg, name, typ))
+	case 'A', 'B':
+		var tparams []*types.TypeParam
+		if tag == 'B' {
+			tparams = r.tparamList()
+		}
+		rhs := r.typ()
+		r.declare(newAliasTypeName(pos, r.currPkg, name, rhs, tparams))
 
 	case 'C':
 		typ, val := r.value()
@@ -611,7 +620,7 @@ func (r *importReader) doType(base *types.Named) types.Type {
 		errorf("unexpected kind tag in %q: %v", r.p.ipath, k)
 		return nil
 
-	case definedType:
+	case aliasType, definedType:
 		pkg, name := r.qualifiedIdent()
 		r.p.doDecl(pkg, name)
 		return pkg.Scope().Lookup(name).(*types.TypeName).Type()

@@ -8,9 +8,10 @@ package aes
 
 import (
 	"crypto/cipher"
+	"crypto/internal/alias"
 	"crypto/subtle"
-	"encoding/binary"
 	"errors"
+	"internal/byteorder"
 	"runtime"
 )
 
@@ -66,14 +67,14 @@ func (c *aesCipherAsm) NewGCM(nonceSize, tagSize int) (cipher.AEAD, error) {
 	// Reverse the bytes in each 8 byte chunk
 	// Load little endian, store big endian
 	if runtime.GOARCH == "ppc64le" {
-		h1 = binary.LittleEndian.Uint64(hle[:8])
-		h2 = binary.LittleEndian.Uint64(hle[8:])
+		h1 = byteorder.LeUint64(hle[:8])
+		h2 = byteorder.LeUint64(hle[8:])
 	} else {
-		h1 = binary.BigEndian.Uint64(hle[:8])
-		h2 = binary.BigEndian.Uint64(hle[8:])
+		h1 = byteorder.BeUint64(hle[:8])
+		h2 = byteorder.BeUint64(hle[8:])
 	}
-	binary.BigEndian.PutUint64(hle[:8], h1)
-	binary.BigEndian.PutUint64(hle[8:], h2)
+	byteorder.BePutUint64(hle[:8], h1)
+	byteorder.BePutUint64(hle[8:], h2)
 	gcmInit(&g.productTable, hle)
 
 	return g, nil
@@ -126,8 +127,8 @@ func (g *gcmAsm) counterCrypt(out, in []byte, counter *[gcmBlockSize]byte) {
 // increments the rightmost 32-bits of the count value by 1.
 func gcmInc32(counterBlock *[16]byte) {
 	c := counterBlock[len(counterBlock)-4:]
-	x := binary.BigEndian.Uint32(c) + 1
-	binary.BigEndian.PutUint32(c, x)
+	x := byteorder.BeUint32(c) + 1
+	byteorder.BePutUint32(c, x)
 }
 
 // paddedGHASH pads data with zeroes until its length is a multiple of
@@ -171,6 +172,9 @@ func (g *gcmAsm) Seal(dst, nonce, plaintext, data []byte) []byte {
 	}
 
 	ret, out := sliceForAppend(dst, len(plaintext)+g.tagSize)
+	if alias.InexactOverlap(out[:len(plaintext)], plaintext) {
+		panic("crypto/cipher: invalid buffer overlap")
+	}
 
 	var counter, tagMask [gcmBlockSize]byte
 	g.deriveCounter(&counter, nonce)
@@ -210,6 +214,9 @@ func (g *gcmAsm) Open(dst, nonce, ciphertext, data []byte) ([]byte, error) {
 	g.auth(expectedTag[:], ciphertext, data, &tagMask)
 
 	ret, out := sliceForAppend(dst, len(ciphertext))
+	if alias.InexactOverlap(out, ciphertext) {
+		panic("crypto/cipher: invalid buffer overlap")
+	}
 
 	if subtle.ConstantTimeCompare(expectedTag[:g.tagSize], tag) != 1 {
 		clear(out)

@@ -35,9 +35,6 @@ time.
 The GODEBUG variable controls debugging variables within the runtime.
 It is a comma-separated list of name=val pairs setting these named variables:
 
-	allocfreetrace: setting allocfreetrace=1 causes every allocation to be
-	profiled and a stack trace printed on each object's allocation and free.
-
 	clobberfree: setting clobberfree=1 causes the garbage collector to
 	clobber the memory content of an object with bad content when it frees
 	the object.
@@ -144,6 +141,13 @@ It is a comma-separated list of name=val pairs setting these named variables:
 	memprofilerate: setting memprofilerate=X will update the value of runtime.MemProfileRate.
 	When set to 0 memory profiling is disabled.  Refer to the description of
 	MemProfileRate for the default value.
+
+	profstackdepth: profstackdepth=128 (the default) will set the maximum stack
+	depth used by all pprof profilers except for the CPU profiler to 128 frames.
+	Stack traces that exceed this limit will be truncated to the limit starting
+	from the leaf frame. Setting profstackdepth to any value above 1024 will
+	silently default to 1024. Future versions of Go may remove this limitation
+	and extend profstackdepth to apply to the CPU profiler and execution tracer.
 
 	pagetrace: setting pagetrace=/path/to/file will write out a trace of page events
 	that can be viewed, analyzed, and visualized using the x/debug/cmd/pagetrace tool.
@@ -332,6 +336,11 @@ var defaultGOROOT string // set by cmd/link
 // GOROOT returns the root of the Go tree. It uses the
 // GOROOT environment variable, if set at process start,
 // or else the root used during the Go build.
+//
+// Deprecated: The root used during the Go build will not be
+// meaningful if the binary is copied to another machine.
+// Use the system path to locate the “go” binary, and use
+// “go env GOROOT” to find its GOROOT.
 func GOROOT() string {
 	s := gogetenv("GOROOT")
 	if s != "" {

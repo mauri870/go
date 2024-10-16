@@ -711,17 +711,6 @@ func (t *tester) registerTests() {
 			})
 	}
 
-	// GOEXPERIMENT=rangefunc tests
-	if !t.compileOnly {
-		t.registerTest("GOEXPERIMENT=rangefunc go test iter",
-			&goTest{
-				variant: "iter",
-				short:   t.short,
-				env:     []string{"GOEXPERIMENT=rangefunc"},
-				pkg:     "iter",
-			})
-	}
-
 	// GODEBUG=gcstoptheworld=2 tests. We only run these in long-test
 	// mode (with GO_TEST_SHORT=0) because this is just testing a
 	// non-critical debug setting.
@@ -1636,7 +1625,8 @@ func buildModeSupported(compiler, buildmode, goos, goarch string) bool {
 			"android/amd64", "android/arm", "android/arm64", "android/386",
 			"freebsd/amd64",
 			"darwin/amd64", "darwin/arm64",
-			"windows/amd64", "windows/386", "windows/arm64":
+			"windows/amd64", "windows/386", "windows/arm64",
+			"wasip1/wasm":
 			return true
 		}
 		return false
