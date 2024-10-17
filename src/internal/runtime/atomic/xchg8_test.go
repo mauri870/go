@@ -3,6 +3,7 @@
 // license that can be found in the LICENSE file.
 
 //go:build amd64 || arm64 || ppc64 || ppc64le
+//go:build amd64 || arm64 || loong64 || ppc64 || ppc64le
 
 package atomic_test
 

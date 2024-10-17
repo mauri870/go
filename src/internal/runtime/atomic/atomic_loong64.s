@@ -121,6 +121,45 @@ TEXT ·Xadd64(SB), NOSPLIT, $0-24
 	DBAR
 	RET
 
+// byte	Xchg8(byte volatile*, byte);
+TEXT ·Xchg8(SB), NOSPLIT, $0-17
+	MOVV	ptr+0(FP), R4
+	MOVBU	new+8(FP), R5
+	// Align ptr down to 4 bytes so we can use 32-bit load/store.
+	MOVV	$~3, R6
+	AND	R4, R6
+	// R7 = ((ptr & 3) * 8) Shift
+	AND	$3, R4, R7
+	SLLV	$3, R7
+	// R6 = mask
+	SLLV	$0xFF, R7, R6
+	// R5 = uint32(new) word
+	SLLV	R5, R7, R5
+	NOR	R0, R8
+	OR	R8, R5
+
+		// Shift val for aligned ptr. R5 = val << R7 | ^(0xFF << R7)
+		MOVV	$0xFF, R8
+		SLLV	R7, R5
+		SLLV	R7, R8
+		NOR	R0, R8
+		OR	R8, R5
+
+	DBAR
+	// R4 = old word
+	LL	(R6), R4
+	// R8 = (old&^mask)|word)
+	AND	R6, R4, R8
+	OR	R5, R8
+	SC	R8, (R6)
+	BEQ	R8, -4(PC)
+	DBAR
+	// R7 = uint8((old & mask) >> shift)
+	AND R6, R4
+	SRLV	R7, R4
+	MOVB	R4, ret+16(FP)
+	RET
+
 TEXT ·Xchg(SB), NOSPLIT, $0-20
 	MOVV	ptr+0(FP), R4
 	MOVW	new+8(FP), R5
