@@ -272,6 +272,24 @@ TEXT ·Xadd64(SB),NOSPLIT,$-4-20
 #endif
 	JMP	armXadd64<>(SB)
 
+TEXT ·Xchg8(SB),NOSPLIT,$-4-9
+	MOVW	addr+0(FP), R1
+	MOVB v+4(FP), R2
+
+xchg8loop:
+	LDREXB	(R1), R6
+
+	DMB	MB_ISHST
+
+	STREXB	R2, (R1), R0
+	CMP	$0, R0
+	BNE	xchg8loop
+
+	DMB	MB_ISH
+
+	MOVBU	R6, ret+8(FP)
+	RET
+
 TEXT ·Xchg64(SB),NOSPLIT,$-4-20
 	NO_LOCAL_POINTERS
 	MOVW	addr+0(FP), R1
