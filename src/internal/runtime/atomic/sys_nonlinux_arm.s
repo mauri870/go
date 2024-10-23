@@ -77,3 +77,32 @@ TEXT	·Store8(SB),NOSPLIT,$0-5
 	DMB	MB_ISH
 	RET
 
+TEXT ·And8(SB),NOSPLIT,$-4-5
+	NO_LOCAL_POINTERS
+	MOVW	addr+0(FP), R1
+
+// Uses STREXB/LDREXB that is armv6k or later.
+// For simplicity we only enable this on armv7.
+#ifndef GOARM_7
+	MOVB	internal∕cpu·ARM+const_offsetARMHasV7Atomics(SB), R11
+	CMP	$1, R11
+	BEQ	2(PC)
+	JMP	·goAnd8(SB)
+#endif
+	JMP	armAnd8<>(SB)
+
+
+TEXT ·Or8(SB),NOSPLIT,$-4-5
+	NO_LOCAL_POINTERS
+	MOVW	addr+0(FP), R1
+
+// Uses STREXB/LDREXB that is armv6k or later.
+// For simplicity we only enable this on armv7.
+#ifndef GOARM_7
+	MOVB	internal∕cpu·ARM+const_offsetARMHasV7Atomics(SB), R11
+	CMP	$1, R11
+	BEQ	2(PC)
+	JMP	·goOr8(SB)
+#endif
+	JMP	armOr8<>(SB)
+
