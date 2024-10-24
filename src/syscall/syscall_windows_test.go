@@ -15,25 +15,40 @@ import (
 	"testing"
 )
 
-func TestOpen_Dir(t *testing.T) {
-	dir := t.TempDir()
+func TestOpen(t *testing.T) {
+	t.Parallel()
 
-	h, err := syscall.Open(dir, syscall.O_RDONLY, 0)
+	dir := t.TempDir()
+	file := filepath.Join(dir, "a")
+	f, err := os.Create(file)
 	if err != nil {
-		t.Fatalf("Open failed: %v", err)
+		t.Fatal(err)
 	}
-	syscall.CloseHandle(h)
-	h, err = syscall.Open(dir, syscall.O_RDONLY|syscall.O_TRUNC, 0)
-	if err == nil {
-		t.Error("Open should have failed")
-	} else {
-		syscall.CloseHandle(h)
+	f.Close()
+
+	tests := []struct {
+		path string
+		flag int
+		err  error
+	}{
+		{dir, syscall.O_RDONLY, nil},
+		{dir, syscall.O_CREAT, nil},
+		{dir, syscall.O_RDONLY | syscall.O_CREAT, nil},
+		{file, syscall.O_APPEND | syscall.O_WRONLY | os.O_CREATE, nil},
+		{file, syscall.O_APPEND | syscall.O_WRONLY | os.O_CREATE | os.O_TRUNC, nil},
+		{dir, syscall.O_RDONLY | syscall.O_TRUNC, syscall.ERROR_ACCESS_DENIED},
+		{dir, syscall.O_WRONLY | syscall.O_RDWR, syscall.EISDIR},
+		{dir, syscall.O_WRONLY, syscall.EISDIR},
+		{dir, syscall.O_RDWR, syscall.EISDIR},
 	}
-	h, err = syscall.Open(dir, syscall.O_RDONLY|syscall.O_CREAT, 0)
-	if err == nil {
-		t.Error("Open should have failed")
-	} else {
-		syscall.CloseHandle(h)
+	for i, tt := range tests {
+		h, err := syscall.Open(tt.path, tt.flag, 0o660)
+		if err == nil {
+			syscall.CloseHandle(h)
+		}
+		if err != tt.err {
+			t.Errorf("%d: Open got %q, want %q", i, err, tt.err)
+		}
 	}
 }
 

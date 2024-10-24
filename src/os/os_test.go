@@ -1777,35 +1777,36 @@ func TestSeekError(t *testing.T) {
 	}
 }
 
-type openErrorTest struct {
-	path  string
-	mode  int
-	error error
-}
-
-var openErrorTests = []openErrorTest{
-	{
-		sfdir + "/no-such-file",
-		O_RDONLY,
-		syscall.ENOENT,
-	},
-	{
-		sfdir,
-		O_WRONLY,
-		syscall.EISDIR,
-	},
-	{
-		sfdir + "/" + sfname + "/no-such-file",
-		O_WRONLY,
-		syscall.ENOTDIR,
-	},
-}
-
 func TestOpenError(t *testing.T) {
 	t.Parallel()
 
-	for _, tt := range openErrorTests {
-		f, err := OpenFile(tt.path, tt.mode, 0)
+	dir := t.TempDir()
+	if err := WriteFile(filepath.Join(dir, "is-a-file"), nil, 0o666); err != nil {
+		t.Fatal(err)
+	}
+	if err := Mkdir(filepath.Join(dir, "is-a-dir"), 0o777); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tt := range []struct {
+		path  string
+		mode  int
+		error error
+	}{{
+		"no-such-file",
+		O_RDONLY,
+		syscall.ENOENT,
+	}, {
+		"is-a-dir",
+		O_WRONLY,
+		syscall.EISDIR,
+	}, {
+		"is-a-file/no-such-file",
+		O_WRONLY,
+		syscall.ENOTDIR,
+	}} {
+		path := filepath.Join(dir, tt.path)
+		f, err := OpenFile(path, tt.mode, 0)
 		if err == nil {
 			t.Errorf("Open(%q, %d) succeeded", tt.path, tt.mode)
 			f.Close()
@@ -3383,6 +3384,7 @@ func verifyCopyFS(t *testing.T, originFS, copiedFS fs.FS) error {
 	if err != nil {
 		return fmt.Errorf("stat file %q failed: %v", f.Name(), err)
 	}
+	wantFileRWMode := wantFileRWStat.Mode()
 
 	return fs.WalkDir(originFS, ".", func(path string, d fs.DirEntry, err error) error {
 		if d.IsDir() {
@@ -3437,13 +3439,14 @@ func verifyCopyFS(t *testing.T, originFS, copiedFS fs.FS) error {
 		}
 
 		// check whether the execute permission is inherited from original FS
-		if copiedStat.Mode()&0111 != fStat.Mode()&0111 {
+
+		if copiedStat.Mode()&0111&wantFileRWMode != fStat.Mode()&0111&wantFileRWMode {
 			return fmt.Errorf("file %q execute mode is %v, want %v",
 				path, copiedStat.Mode()&0111, fStat.Mode()&0111)
 		}
 
 		rwMode := copiedStat.Mode() &^ 0111 // unset the executable permission from file mode
-		if rwMode != wantFileRWStat.Mode() {
+		if rwMode != wantFileRWMode {
 			return fmt.Errorf("file %q rw mode is %v, want %v",
 				path, rwMode, wantFileRWStat.Mode())
 		}
@@ -3588,5 +3591,31 @@ func TestCopyFSWithSymlinks(t *testing.T) {
 		return nil
 	}); err != nil {
 		t.Fatal("comparing two directories:", err)
+	}
+}
+
+func TestAppendDoesntOverwrite(t *testing.T) {
+	name := filepath.Join(t.TempDir(), "file")
+	if err := WriteFile(name, []byte("hello"), 0666); err != nil {
+		t.Fatal(err)
+	}
+	f, err := OpenFile(name, O_APPEND|O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.Write([]byte(" world")); err != nil {
+		f.Close()
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	got, err := ReadFile(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "hello world"
+	if string(got) != want {
+		t.Fatalf("got %q, want %q", got, want)
 	}
 }

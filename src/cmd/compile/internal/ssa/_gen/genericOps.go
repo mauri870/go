@@ -630,11 +630,12 @@ var genericOps = []opData{
 	// Atomic operation variants
 	// These variants have the same semantics as above atomic operations.
 	// But they are used for generating more efficient code on certain modern machines, with run-time CPU feature detection.
-	// On ARM64, these are used when the LSE hardware feature is avaliable (either known at compile time or detected at runtime). If LSE is not avaliable,
+	// On ARM64, these are used when the LSE hardware feature is available (either known at compile time or detected at runtime). If LSE is not available,
 	// then the basic atomic oprations are used instead.
 	// These are not currently used on any other platform.
 	{name: "AtomicAdd32Variant", argLength: 3, typ: "(UInt32,Mem)", hasSideEffects: true},          // Do *arg0 += arg1.  arg2=memory.  Returns sum and new memory.
 	{name: "AtomicAdd64Variant", argLength: 3, typ: "(UInt64,Mem)", hasSideEffects: true},          // Do *arg0 += arg1.  arg2=memory.  Returns sum and new memory.
+	{name: "AtomicExchange8Variant", argLength: 3, typ: "(UInt8,Mem)", hasSideEffects: true},       // Store arg1 to *arg0.  arg2=memory.  Returns old contents of *arg0 and new memory.
 	{name: "AtomicExchange32Variant", argLength: 3, typ: "(UInt32,Mem)", hasSideEffects: true},     // Store arg1 to *arg0.  arg2=memory.  Returns old contents of *arg0 and new memory.
 	{name: "AtomicExchange64Variant", argLength: 3, typ: "(UInt64,Mem)", hasSideEffects: true},     // Store arg1 to *arg0.  arg2=memory.  Returns old contents of *arg0 and new memory.
 	{name: "AtomicCompareAndSwap32Variant", argLength: 4, typ: "(Bool,Mem)", hasSideEffects: true}, // if *arg0==arg1, then set *arg0=arg2.  Returns true if store happens and new memory.
