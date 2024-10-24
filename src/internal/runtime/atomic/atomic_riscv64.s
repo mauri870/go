@@ -192,38 +192,34 @@ TEXT ·StoreReluintptr(SB), NOSPLIT, $0-16
 	JMP	·Store64(SB)
 
 TEXT ·Xchg8(SB), NOSPLIT, $0-17
-    MOV     ptr+0(FP), A0        // Load pointer
-    MOVBU   new+8(FP), A1        // Load new byte (unsigned)
+	MOV	ptr+0(FP), A1
+	MOVB	new+8(FP), A2
+	// Align ptr down to 4 bytes so we can use 32-bit load/store.
+	MOV	$~3, A3
+	AND	A1, A3
+	// Compute val shift.
+	// Big endian.  ptr = ptr ^ 3
+	XOR	$3, A1
+	// R4 = ((ptr & 3) * 8)
+	AND	$3, A1, A4
+	SLL	$3, A4
+	// Shift val for aligned ptr. R2 = val << R4 | ^(0xFF << R4)
+	MOV	$0xFF, A5
+	SLL	A4, A2
+	SLL	A4, A5
+	NOT	A5
+	OR	A0, A5
+	OR	A5, A2
 
-	AND	$3, A0, A2
-	AND	$-4, A0
-	SLL	$3, A2
-	XOR	$255, A1
-	SLL	A2, A1
-	XOR	$-1, A1
-    // AND    $-4, A0, A2
-	// SLL	   $3, A0
-	// XOR    $255, A1, A3
-	// SLL A1, A0
-
-try_xchg8:
-    // LRW     (A2), A1
-	LRW (A0), A5
-	// MOV A1, A4
-	// XOR A4, A5, A4
-	// AND A4, A3, A4
-	// XOR A4, A5, A4
-    SCW     A1, (A0), A7
-    BNE     A7, ZERO, try_xchg8
-
-	// A5 = old
-	// A5 = (old & mask) >> shift
-	AND	$255, A5
-	SRL	$3, A5
-
-    MOVB     A5, ret+16(FP)
-    RET
-
+xchg8loop:
+	// FENCE
+	// LW	(A3), A4
+	AMOSWAPW A2, (A3), A4
+	// SCW	A2, (A3), A0
+	// BNE	A0, ZERO, xchg8loop
+	// FENCE
+	MOVB	A4, ret+16(FP)
+	RET
 
 // func Xchg(ptr *uint32, new uint32) uint32
 TEXT ·Xchg(SB), NOSPLIT, $0-20
