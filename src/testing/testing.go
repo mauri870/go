@@ -953,6 +953,7 @@ var _ TB = (*B)(nil)
 type T struct {
 	common
 	denyParallel bool
+	retries      atomic.Int32
 	tstate       *testState // For running tests and subtests.
 }
 
@@ -1875,6 +1876,39 @@ func (t *T) Run(name string, f func(t *T)) bool {
 func (t *T) Deadline() (deadline time.Time, ok bool) {
 	deadline = t.tstate.deadline
 	return deadline, !deadline.IsZero()
+}
+
+// Retry causes the test to clean up and exit,
+// as if [T.FailNow] had been called, and then start again.
+// If the test is already cleaning up and exiting,
+// such as when called as part of a func deferred or registered with [T.Cleanup],
+// Retry lets that process finish and then starts the test again.
+func (t *T) Retry() {
+	if t.chatty != nil {
+		t.chatty.Updatef(t.name, "=== RETRY   %s\n", t.name)
+	}
+	cleanedUp := false
+	for t.cleanupStarted.Load() {
+		cleanedUp = true
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	if !cleanedUp {
+		err := t.runCleanup(recoverAndReturnPanic)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	defer func() { t.retries.Add(1) }()
+
+	// TODO: restart the test
+	// panic("unimplemented")
+}
+
+// Retries returns the number of times this test has been retried during this run.
+func (t *T) Retries() int {
+	return int(t.retries.Load())
 }
 
 // testState holds all fields that are common to all tests. This includes

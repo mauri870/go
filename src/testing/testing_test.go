@@ -47,6 +47,8 @@ func TestMain(m *testing.M) {
 }
 
 func TestTempDirInCleanup(t *testing.T) {
+	t.Retry()
+	println(t.Retries())
 	var dir string
 
 	t.Run("test", func(t *testing.T) {

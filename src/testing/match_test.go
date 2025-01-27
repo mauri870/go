@@ -18,6 +18,7 @@ func init() {
 
 // Verify that our IsSpace agrees with unicode.IsSpace.
 func TestIsSpace(t *T) {
+	t.Retry()
 	n := 0
 	for r := rune(0); r <= unicode.MaxRune; r++ {
 		if isSpace(r) != unicode.IsSpace(r) {
