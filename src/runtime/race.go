@@ -51,6 +51,12 @@ func RaceErrors() int {
 	return int(n)
 }
 
+// raceCas128 is the race-instrumented Compare-And-Swap for 128-bit pairs.
+// Body is in race_<arch>.s and forwards to __tsan_go_atomic128_compare_exchange.
+//
+//go:noescape
+func raceCas128(addr *uint64, old1, old2, new1, new2 uint64) bool
+
 //go:linkname race_Errors internal/race.Errors
 //go:nosplit
 func race_Errors() int {

@@ -20,6 +20,7 @@ import _ "unsafe" // for linkname
 //go:linkname Xchguintptr
 //go:linkname Cas
 //go:linkname Cas64
+//go:linkname Cas128
 //go:linkname Casint32
 //go:linkname Casint64
 //go:linkname Casuintptr

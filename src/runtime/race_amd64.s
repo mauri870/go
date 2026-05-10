@@ -379,6 +379,14 @@ TEXT	sync∕atomic·CompareAndSwapUintptr(SB), NOSPLIT, $0-25
 	GO_ARGS
 	JMP	sync∕atomic·CompareAndSwapInt64(SB)
 
+// 128-bit Compare-And-Swap. sync/atomic linknames its cas128 to this.
+// Frame: addr (8) + old1 (8) + old2 (8) + new1 (8) + new2 (8) + ret (1) = 41
+TEXT	runtime·raceCas128(SB), NOSPLIT|NOFRAME, $0-41
+	GO_ARGS
+	MOVQ	$__tsan_go_atomic128_compare_exchange(SB), AX
+	CALL	racecallatomic<>(SB)
+	RET
+
 // Generic atomic operation implementation.
 // AX already contains target function.
 TEXT	racecallatomic<>(SB), NOSPLIT|NOFRAME, $0-0

@@ -1,0 +1,5 @@
+pkg sync/atomic, method (*Uint64Pair) CompareAndSwap(uint64, uint64, uint64, uint64) bool #61236
+pkg sync/atomic, method (*Uint64Pair) Load() (uint64, uint64) #61236
+pkg sync/atomic, method (*Uint64Pair) Store(uint64, uint64) #61236
+pkg sync/atomic, method (*Uint64Pair) Swap(uint64, uint64) (uint64, uint64) #61236
+pkg sync/atomic, type Uint64Pair struct #61236
