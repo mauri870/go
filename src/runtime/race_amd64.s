@@ -379,10 +379,27 @@ TEXT	sync∕atomic·CompareAndSwapUintptr(SB), NOSPLIT, $0-25
 	GO_ARGS
 	JMP	sync∕atomic·CompareAndSwapInt64(SB)
 
+// 128-bit Load. sync/atomic linknames its load128 to this.
+// Frame: addr *[2]uint64 (8) + lo uint64 (8) + hi uint64 (8) = 24
+TEXT	runtime·raceLoad128(SB), NOSPLIT|NOFRAME, $0-24
+	GO_ARGS
+	MOVQ	$__tsan_go_atomic128_load(SB), AX
+	CALL	racecallatomic<>(SB)
+	RET
+
+// 128-bit Store. sync/atomic linknames its store128 to this.
+// Frame: addr *[2]uint64 (8) + lo uint64 (8) + hi uint64 (8) = 24
+TEXT	runtime·raceStore128(SB), NOSPLIT|NOFRAME, $0-24
+	GO_ARGS
+	MOVQ	$__tsan_go_atomic128_store(SB), AX
+	CALL	racecallatomic<>(SB)
+	RET
+
 // 128-bit Compare-And-Swap. sync/atomic linknames its cas128 to this.
-// Frame: addr (8) + old1 (8) + old2 (8) + new1 (8) + new2 (8) + ret (1) = 41
+// Frame: addr *[2]uint64 (8) + old1 (8) + old2 (8) + new1 (8) + new2 (8) + ret (1) = 41
 TEXT	runtime·raceCas128(SB), NOSPLIT|NOFRAME, $0-41
 	GO_ARGS
+	MOVB	$0, ret+40(FP)	// zero-init so the assembler sees the write; TSan overwrites
 	MOVQ	$__tsan_go_atomic128_compare_exchange(SB), AX
 	CALL	racecallatomic<>(SB)
 	RET

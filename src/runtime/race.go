@@ -51,11 +51,39 @@ func RaceErrors() int {
 	return int(n)
 }
 
+// raceLoad128 is the race-instrumented 128-bit load.
+// Body is in race_<arch>.s and forwards to __tsan_go_atomic128_load.
+//
+//go:noescape
+func raceLoad128(addr *[2]uint64) (lo, hi uint64)
+
+// raceStore128 is the race-instrumented 128-bit store.
+// Body is in race_<arch>.s and forwards to __tsan_go_atomic128_store.
+//
+//go:noescape
+func raceStore128(addr *[2]uint64, lo, hi uint64)
+
+// raceSwap128 is the race-instrumented 128-bit exchange. TSan has no native
+// 128-bit exchange, so this is implemented as a load-then-CAS loop.
+//
+// sync/atomic linknames its swap128 to this.
+//
+//go:linkname raceSwap128
+//go:nosplit
+func raceSwap128(addr *[2]uint64, new1, new2 uint64) (old1, old2 uint64) {
+	for {
+		old1, old2 = raceLoad128(addr)
+		if raceCas128(addr, old1, old2, new1, new2) {
+			return
+		}
+	}
+}
+
 // raceCas128 is the race-instrumented Compare-And-Swap for 128-bit pairs.
 // Body is in race_<arch>.s and forwards to __tsan_go_atomic128_compare_exchange.
 //
 //go:noescape
-func raceCas128(addr *uint64, old1, old2, new1, new2 uint64) bool
+func raceCas128(addr *[2]uint64, old1, old2, new1, new2 uint64) bool
 
 //go:linkname race_Errors internal/race.Errors
 //go:nosplit
@@ -418,6 +446,9 @@ var __tsan_report_count byte
 //go:cgo_import_static __tsan_go_atomic64_fetch_or
 //go:cgo_import_static __tsan_go_atomic32_compare_exchange
 //go:cgo_import_static __tsan_go_atomic64_compare_exchange
+//go:cgo_import_static __tsan_go_atomic128_load
+//go:cgo_import_static __tsan_go_atomic128_store
+//go:cgo_import_static __tsan_go_atomic128_compare_exchange
 
 // start/end of global data (data+bss).
 var racedatastart uintptr
