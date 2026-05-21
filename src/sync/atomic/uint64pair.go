@@ -12,60 +12,36 @@ import "unsafe"
 // Uint64Pair must not be copied after first use.
 type Uint64Pair struct {
 	_ noCopy
-	// 24 bytes of storage so that a 16-byte-aligned 16-byte region is
+	// v holds 24 bytes of storage so that a 16-byte-aligned 16-byte pair is
 	// always available inside, regardless of how Uint64Pair is allocated.
-	// addr selects that region.
+	// addr selects that pair.
 	v [3]uint64
 }
 
-// addr returns the 16-byte-aligned *uint64 inside x.v that holds the
+// addr returns the 16-byte-aligned *[2]uint64 inside x.v that holds the
 // atomic pair.
 //
 //go:nosplit
-func (x *Uint64Pair) addr() *uint64 {
+func (x *Uint64Pair) addr() *[2]uint64 {
 	if uintptr(unsafe.Pointer(&x.v[0]))&15 == 0 {
-		return &x.v[0]
+		return (*[2]uint64)(unsafe.Pointer(&x.v[0]))
 	}
-	return &x.v[1]
+	return (*[2]uint64)(unsafe.Pointer(&x.v[1]))
 }
 
 // Load atomically loads and returns the pair stored in x.
 func (x *Uint64Pair) Load() (v1, v2 uint64) {
-	a := x.addr()
-	pair := (*[2]uint64)(unsafe.Pointer(a))
-	for {
-		v1 = LoadUint64(&pair[0])
-		v2 = LoadUint64(&pair[1])
-		if cas128(a, v1, v2, v1, v2) {
-			return
-		}
-	}
+	return load128(x.addr())
 }
 
 // Store atomically stores the pair v1, v2 into x.
 func (x *Uint64Pair) Store(v1, v2 uint64) {
-	a := x.addr()
-	pair := (*[2]uint64)(unsafe.Pointer(a))
-	for {
-		old1 := LoadUint64(&pair[0])
-		old2 := LoadUint64(&pair[1])
-		if cas128(a, old1, old2, v1, v2) {
-			return
-		}
-	}
+	store128(x.addr(), v1, v2)
 }
 
 // Swap atomically stores new1, new2 into x and returns the old pair.
 func (x *Uint64Pair) Swap(new1, new2 uint64) (old1, old2 uint64) {
-	a := x.addr()
-	pair := (*[2]uint64)(unsafe.Pointer(a))
-	for {
-		old1 = LoadUint64(&pair[0])
-		old2 = LoadUint64(&pair[1])
-		if cas128(a, old1, old2, new1, new2) {
-			return
-		}
-	}
+	return swap128(x.addr(), new1, new2)
 }
 
 // CompareAndSwap executes the compare-and-swap operation for x.
@@ -73,9 +49,7 @@ func (x *Uint64Pair) CompareAndSwap(old1, old2, new1, new2 uint64) (swapped bool
 	return cas128(x.addr(), old1, old2, new1, new2)
 }
 
-// cas128 is split across build tags:
-//   - !race: bodies in uint64pair_norace.go (linkname'd to
-//     internal/runtime/atomic.Cas128)
-//   - race:  declaration only in uint64pair_race.go; body provided as
-//     a TSan trampoline in runtime/race_amd64.s calling
-//     __tsan_go_atomic128_compare_exchange
+// The following functions are split across build tags:
+//   - !race: bodies in uint64pair_norace.go (linknamed to internal/runtime/atomic)
+//   - race:  declarations in uint64pair_race.go; bodies provided by TSan trampolines
+//     in runtime/race_<arch>.s and runtime/race.go.
