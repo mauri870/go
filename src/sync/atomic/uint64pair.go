@@ -4,29 +4,23 @@
 
 package atomic
 
-import "unsafe"
-
 // A Uint64Pair is an atomic pair of uint64 values.
 // The zero value is a pair of zeros.
 //
 // Uint64Pair must not be copied after first use.
 type Uint64Pair struct {
 	_ noCopy
-	// v holds 24 bytes of storage so that a 16-byte-aligned 16-byte pair is
-	// always available inside, regardless of how Uint64Pair is allocated.
-	// addr selects that pair.
-	v [3]uint64
+	_ align128
+	v [2]uint64
 }
 
-// addr returns the 16-byte-aligned *[2]uint64 inside x.v that holds the
-// atomic pair.
+// addr returns the 16-byte-aligned *[2]uint64 inside x that holds the atomic
+// pair. The struct's align128 field guarantees that x is 16-byte aligned, so
+// v is always 16-byte aligned.
 //
 //go:nosplit
 func (x *Uint64Pair) addr() *[2]uint64 {
-	if uintptr(unsafe.Pointer(&x.v[0]))&15 == 0 {
-		return (*[2]uint64)(unsafe.Pointer(&x.v[0]))
-	}
-	return (*[2]uint64)(unsafe.Pointer(&x.v[1]))
+	return &x.v
 }
 
 // Load atomically loads and returns the pair stored in x.

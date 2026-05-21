@@ -2921,6 +2921,19 @@ func TestAutoAligned64(t *testing.T) {
 	}
 }
 
+func TestAutoAligned128(t *testing.T) {
+	var pair struct {
+		_ uint32
+		p Uint64Pair
+	}
+	if o := reflect.TypeOf(&pair).Elem().Field(1).Offset; o != 16 {
+		t.Fatalf("Uint64Pair offset = %d, want 16", o)
+	}
+	if p := reflect.ValueOf(&pair).Elem().Field(1).Addr().Pointer(); p&15 != 0 {
+		t.Fatalf("Uint64Pair pointer = %#x, want 16-aligned", p)
+	}
+}
+
 func TestNilDeref(t *testing.T) {
 	funcs := [...]func(){
 		func() { CompareAndSwapInt32(nil, 0, 0) },
