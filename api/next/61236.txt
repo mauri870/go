@@ -1,5 +1,15 @@
+pkg sync/atomic, method (*PointerPair[T1, T2]) CompareAndSwap(*T1, *T2, *T1, *T2) bool #61236
+pkg sync/atomic, method (*PointerPair[T1, T2]) Load() (*T1, *T2) #61236
+pkg sync/atomic, method (*PointerPair[T1, T2]) Store(*T1, *T2) #61236
+pkg sync/atomic, method (*PointerPair[T1, T2]) Swap(*T1, *T2) (*T1, *T2) #61236
+pkg sync/atomic, method (*Uint64AndPointer[T]) CompareAndSwap(uint64, *T, uint64, *T) bool #61236
+pkg sync/atomic, method (*Uint64AndPointer[T]) Load() (uint64, *T) #61236
+pkg sync/atomic, method (*Uint64AndPointer[T]) Store(uint64, *T) #61236
+pkg sync/atomic, method (*Uint64AndPointer[T]) Swap(uint64, *T) (uint64, *T) #61236
 pkg sync/atomic, method (*Uint64Pair) CompareAndSwap(uint64, uint64, uint64, uint64) bool #61236
 pkg sync/atomic, method (*Uint64Pair) Load() (uint64, uint64) #61236
 pkg sync/atomic, method (*Uint64Pair) Store(uint64, uint64) #61236
 pkg sync/atomic, method (*Uint64Pair) Swap(uint64, uint64) (uint64, uint64) #61236
+pkg sync/atomic, type PointerPair[T1, T2 any] struct #61236
+pkg sync/atomic, type Uint64AndPointer[T any] struct #61236
 pkg sync/atomic, type Uint64Pair struct #61236
