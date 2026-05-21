@@ -6,6 +6,7 @@
 // by the compiler (in src/cmd/compile/internal/gc/ssa.go).
 
 #include "textflag.h"
+#include "asm_amd64.h"
 
 TEXT ·Loaduintptr(SB), NOSPLIT, $0-16
 	JMP	·Load64(SB)
@@ -70,11 +71,11 @@ TEXT ·Casp1(SB), NOSPLIT, $0-25
 	SETEQ	ret+24(FP)
 	RET
 
-// func Cas128(ptr *uint64, old1, old2, new1, new2 uint64) bool
+// func Cas128(ptr *[2]uint64, old1, old2, new1, new2 uint64) bool
 // Atomically:
-//	if *ptr == old1 && *(ptr+1) == old2 {
-//		*ptr = new1
-//		*(ptr+1) = new2
+//	if (*ptr)[0] == old1 && (*ptr)[1] == old2 {
+//		(*ptr)[0] = new1
+//		(*ptr)[1] = new2
 //		return true
 //	} else {
 //		return false
@@ -83,6 +84,7 @@ TEXT ·Casp1(SB), NOSPLIT, $0-25
 // CMPXCHG16B requires its memory operand to be 16-byte aligned;
 // unaligned accesses fault.
 TEXT ·Cas128(SB), NOSPLIT, $0-41
+#ifdef hasCMPXCHG16B
 	MOVQ	ptr+0(FP), DI
 	TESTQ	$15, DI
 	JZ	2(PC)
@@ -94,6 +96,9 @@ TEXT ·Cas128(SB), NOSPLIT, $0-41
 	LOCK
 	CMPXCHG16B	(DI)
 	SETEQ	ret+40(FP)
+#else
+	JMP	·goCas128(SB)
+#endif
 	RET
 
 TEXT ·Casint32(SB), NOSPLIT, $0-17
