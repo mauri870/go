@@ -14,18 +14,18 @@ import (
 // must be at least 3 uint64s wide so a 16-byte-aligned 16-byte region fits.
 func alignedPair128(buf *[3]uint64) *[2]uint64 {
 	if uintptr(unsafe.Pointer(&buf[0]))&15 == 0 {
-		return (*[2]uint64)(unsafe.Pointer(&buf[0]))
+		return (*[2]uint64)(buf[:2])
 	}
-	return (*[2]uint64)(unsafe.Pointer(&buf[1]))
+	return (*[2]uint64)(buf[1:])
 }
 
 // misalignedPair128 returns a *[2]uint64 inside buf that is 8-byte aligned
 // but not 16-byte aligned, to test the panic path.
 func misalignedPair128(buf *[3]uint64) *[2]uint64 {
 	if uintptr(unsafe.Pointer(&buf[0]))&15 == 0 {
-		return (*[2]uint64)(unsafe.Pointer(&buf[1]))
+		return (*[2]uint64)(buf[1:])
 	}
-	return (*[2]uint64)(unsafe.Pointer(&buf[0]))
+	return (*[2]uint64)(buf[:2])
 }
 
 func TestCas128(t *testing.T) {
