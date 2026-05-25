@@ -73,6 +73,9 @@ tail:
 	JBE	move_129through256
 
 	MOVB	runtime·memmoveBits(SB), AX
+	// Prefer AVX-512 (64-byte vectors) when available.
+	TESTB	$const_avx512Supported, AX
+	JNZ	avx512Unaligned
 	// We have AVX but we don't want to use REP MOVSx.
 	CMPB	AX, $const_avxSupported
 	JEQ	avxUnaligned
@@ -95,6 +98,8 @@ forward:
 	JNZ	fwdBy8
 	// For backward copy, REP MOVSx performs worse than avx.
 check_avx:
+	TESTB	$const_avx512Supported, AX
+	JNZ	avx512Unaligned
 	TESTB	$const_avxSupported, AX
 	JNZ	avxUnaligned
 
@@ -132,6 +137,8 @@ back:
 	CMPQ	CX, DI
 	JLS	forward
 
+	TESTB	$const_avx512Supported, AX
+	JNZ	avx512Unaligned
 	TESTB	$const_avxSupported, AX
 	JNZ	avxUnaligned
 /*
@@ -378,6 +385,7 @@ avxUnaligned:
 	ADDQ	R11, SI
 	SUBQ	AX, BX
 	// Aligned memory copying there
+	PCALIGN	$32
 gobble_128_loop:
 	VMOVDQU	(SI), Y0
 	VMOVDQU	0x20(SI), Y1
@@ -429,6 +437,7 @@ gobble_big_data_fwd:
 	ADDQ	R10, SI
 	LEAQ	(DI)(BX*1), CX
 	SUBQ	$0x80, BX
+	PCALIGN	$32
 gobble_mem_fwd_loop:
 	PREFETCHNTA 0x1C0(SI)
 	PREFETCHNTA 0x280(SI)
@@ -490,6 +499,7 @@ copy_backward:
 	CMPQ	BX, $0x100000
 	JA		gobble_big_data_bwd
 	SUBQ	$0x80, BX
+	PCALIGN	$32
 gobble_mem_bwd_loop:
 	VMOVDQU	-0x20(SI), Y0
 	VMOVDQU	-0x40(SI), Y1
@@ -544,4 +554,220 @@ gobble_big_mem_bwd_loop:
 	MOVOU	X10, 0x50(AX)
 	MOVOU	X11, 0x60(AX)
 	MOVOU	X12, 0x70(AX)
+	RET
+
+// AVX-512 paths use 64-byte Z registers (ZMM) for 256 bytes per loop
+// iteration.  The algorithm mirrors the existing AVX (256-bit) path but
+// with doubled vector width and 64-byte destination alignment.
+//
+// Safety invariant: BX must be >= 512 before the inner loops are reached.
+// For BX in (256, 512) we fall back to the AVX (256-bit) path.
+//
+// The tail is saved in Z5-Z8 (256 bytes total) rather than in SSE registers.
+// Because the loop processes 256 bytes per iteration the remainder after the
+// loop can be up to 255 bytes; a 128-byte SSE tail would leave a gap.
+// All Z registers are written before VZEROUPPER so their values remain valid.
+//
+// Register map (shared by all AVX-512 paths):
+//   Z0-Z3  scratch for the main copy loop
+//   Z4     unaligned head/end chunk (64 bytes)
+//   Z5-Z8  unaligned tail/beginning chunk (4 × 64 = 256 bytes)
+//   R10    original DI (forward) or end-of-dst minus 64 (backward)
+//   R11    alignment delta
+//   AX     256 (bytes per iteration, forward paths only)
+
+avx512Unaligned:
+	// Fall back for sizes below the safe minimum.  With a 64-byte alignment
+	// adjustment and a 256-byte tail reserve the minimum safe BX is 320;
+	// use 512 to keep the threshold a round power of two.
+	CMPQ	BX, $512
+	JB	avxUnaligned
+
+	MOVQ	DI, CX
+	SUBQ	SI, CX
+	// If dst is within BX bytes ahead of src the regions overlap and we
+	// must copy backward.
+	CMPQ	CX, BX
+	JC	avx512_copy_backward
+
+	// Non-temporal stores for large transfers.
+	CMPQ	BX, $0x100000
+	JAE	avx512_gobble_big_data_fwd
+
+	// Memory layout (source side):
+	// SI                                             CX=end
+	// |<--------------------BX--------------------->|
+	// |       |<----body (aligned dst)---->|         |
+	// |<-R11->|                            |<-256 B->|
+	// +----------------------------------------------------+
+	// | Head  | Body                       | Tail         |
+	// +-------+----------------------------+--------------+
+	//
+	// 1. Save tail (last 256 bytes) into Z5-Z8.
+	// 2. Save head (first 64 bytes) into Z4.
+	// 3. Align DI to 64-byte boundary; adjust SI/BX by delta R11.
+	// 4. Copy body 256 bytes at a time with aligned stores.
+	// 5. Write head (Z4) then tail (Z5-Z8) to destination.
+	LEAQ	(SI)(BX*1), CX
+	MOVQ	DI, R10
+	VMOVDQU64	-0x100(CX), Z5
+	VMOVDQU64	-0xC0(CX), Z6
+	MOVQ	$0x100, AX
+	ANDQ	$-64, DI
+	ADDQ	$64, DI
+	VMOVDQU64	-0x80(CX), Z7
+	VMOVDQU64	-0x40(CX), Z8
+	MOVQ	DI, R11
+	SUBQ	R10, R11
+	VMOVDQU64	(SI), Z4
+	ADDQ	R11, SI
+	SUBQ	R11, BX
+	SUBQ	AX, BX
+	PCALIGN	$64
+avx512_gobble_256_loop:
+	VMOVDQU64	(SI), Z0
+	VMOVDQU64	0x40(SI), Z1
+	VMOVDQU64	0x80(SI), Z2
+	VMOVDQU64	0xC0(SI), Z3
+	ADDQ	AX, SI
+	VMOVDQA64	Z0, (DI)
+	VMOVDQA64	Z1, 0x40(DI)
+	VMOVDQA64	Z2, 0x80(DI)
+	VMOVDQA64	Z3, 0xC0(DI)
+	ADDQ	AX, DI
+	SUBQ	AX, BX
+	JA	avx512_gobble_256_loop
+	// BX now holds the underflowed remainder; restore it, then compute
+	// the end-of-destination address so tail offsets work out.
+	ADDQ	AX, BX
+	ADDQ	DI, BX
+	VMOVDQU64	Z4, (R10)
+	VMOVDQU64	Z5, -0x100(BX)
+	VMOVDQU64	Z6, -0xC0(BX)
+	VMOVDQU64	Z7, -0x80(BX)
+	VMOVDQU64	Z8, -0x40(BX)
+	VZEROUPPER
+	RET
+
+avx512_gobble_big_data_fwd:
+	// Non-temporal forward copy for transfers >= 1 MB.
+	// Same head/tail strategy as avx512Unaligned but uses VMOVNTDQ stores
+	// to bypass the cache and avoid polluting it with streaming data.
+	// CX is first used for end-of-source tail reads, then overwritten with
+	// end-of-dst-body for the tail write offsets after the loop.
+	LEAQ	(SI)(BX*1), CX
+	VMOVDQU64	-0x100(CX), Z5
+	VMOVDQU64	-0xC0(CX), Z6
+	VMOVDQU64	-0x80(CX), Z7
+	VMOVDQU64	-0x40(CX), Z8
+	VMOVDQU64	(SI), Z4
+	MOVQ	DI, R8
+	ANDQ	$-64, DI
+	ADDQ	$64, DI
+	MOVQ	DI, R10
+	SUBQ	R8, R10
+	SUBQ	R10, BX
+	ADDQ	R10, SI
+	LEAQ	(DI)(BX*1), CX
+	SUBQ	$0x100, BX
+	PCALIGN	$64
+avx512_gobble_mem_fwd_loop:
+	PREFETCHNTA	0x1C0(SI)
+	PREFETCHNTA	0x280(SI)
+	VMOVDQU64	(SI), Z0
+	VMOVDQU64	0x40(SI), Z1
+	VMOVDQU64	0x80(SI), Z2
+	VMOVDQU64	0xC0(SI), Z3
+	ADDQ	$0x100, SI
+	VMOVNTDQ	Z0, (DI)
+	VMOVNTDQ	Z1, 0x40(DI)
+	VMOVNTDQ	Z2, 0x80(DI)
+	VMOVNTDQ	Z3, 0xC0(DI)
+	ADDQ	$0x100, DI
+	SUBQ	$0x100, BX
+	JA	avx512_gobble_mem_fwd_loop
+	SFENCE
+	VMOVDQU64	Z4, (R8)
+	VMOVDQU64	Z5, -0x100(CX)
+	VMOVDQU64	Z6, -0xC0(CX)
+	VMOVDQU64	Z7, -0x80(CX)
+	VMOVDQU64	Z8, -0x40(CX)
+	VZEROUPPER
+	RET
+
+avx512_copy_backward:
+	// Backward copy for overlapping regions (dst > src with overlap).
+	// Save the first 256 bytes of source into Z5-Z8 before any stores can
+	// overwrite them; they cover the beginning of dst after the loop.
+	// Save the last 64 bytes of source into Z4 and write it to the
+	// unaligned tail of the destination after the loop.
+	//
+	// With 256-byte loop iterations the loop's last write may leave up to
+	// 255 bytes uncovered at the low end; Z5-Z8 (256 bytes) ensures the
+	// loop always overlaps with the saved beginning region.
+	MOVQ	DI, AX
+	VMOVDQU64	(SI), Z5
+	VMOVDQU64	0x40(SI), Z6
+	ADDQ	BX, DI
+	VMOVDQU64	0x80(SI), Z7
+	VMOVDQU64	0xC0(SI), Z8
+	LEAQ	-0x40(DI), R10
+	MOVQ	DI, R11
+	ANDQ	$0x3F, R11
+	XORQ	R11, DI
+	ADDQ	BX, SI
+	VMOVDQU64	-0x40(SI), Z4
+	SUBQ	R11, SI
+	SUBQ	R11, BX
+	CMPQ	BX, $0x100000
+	JA	avx512_gobble_big_data_bwd
+	SUBQ	$0x100, BX
+	PCALIGN	$64
+avx512_gobble_mem_bwd_loop:
+	VMOVDQU64	-0x40(SI), Z0
+	VMOVDQU64	-0x80(SI), Z1
+	VMOVDQU64	-0xC0(SI), Z2
+	VMOVDQU64	-0x100(SI), Z3
+	SUBQ	$0x100, SI
+	VMOVDQA64	Z0, -0x40(DI)
+	VMOVDQA64	Z1, -0x80(DI)
+	VMOVDQA64	Z2, -0xC0(DI)
+	VMOVDQA64	Z3, -0x100(DI)
+	SUBQ	$0x100, DI
+	SUBQ	$0x100, BX
+	JA	avx512_gobble_mem_bwd_loop
+	VMOVDQU64	Z4, (R10)
+	VMOVDQU64	Z5, (AX)
+	VMOVDQU64	Z6, 0x40(AX)
+	VMOVDQU64	Z7, 0x80(AX)
+	VMOVDQU64	Z8, 0xC0(AX)
+	VZEROUPPER
+	RET
+
+avx512_gobble_big_data_bwd:
+	// Non-temporal backward copy for transfers >= 1 MB.
+	SUBQ	$0x100, BX
+	PCALIGN	$64
+avx512_gobble_big_mem_bwd_loop:
+	PREFETCHNTA	-0x1C0(SI)
+	PREFETCHNTA	-0x280(SI)
+	VMOVDQU64	-0x40(SI), Z0
+	VMOVDQU64	-0x80(SI), Z1
+	VMOVDQU64	-0xC0(SI), Z2
+	VMOVDQU64	-0x100(SI), Z3
+	SUBQ	$0x100, SI
+	VMOVNTDQ	Z0, -0x40(DI)
+	VMOVNTDQ	Z1, -0x80(DI)
+	VMOVNTDQ	Z2, -0xC0(DI)
+	VMOVNTDQ	Z3, -0x100(DI)
+	SUBQ	$0x100, DI
+	SUBQ	$0x100, BX
+	JA	avx512_gobble_big_mem_bwd_loop
+	SFENCE
+	VMOVDQU64	Z4, (R10)
+	VMOVDQU64	Z5, (AX)
+	VMOVDQU64	Z6, 0x40(AX)
+	VMOVDQU64	Z7, 0x80(AX)
+	VMOVDQU64	Z8, 0xC0(AX)
+	VZEROUPPER
 	RET

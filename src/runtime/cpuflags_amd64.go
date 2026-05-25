@@ -17,6 +17,9 @@ const (
 	// repmovsPreferred indicates that REP MOVSx instruction is more
 	// efficient on the CPU.
 	repmovsPreferred = 1 << 1
+
+	// avx512Supported indicates that the CPU supports AVX-512F instructions.
+	avx512Supported = 1 << 2
 )
 
 func init() {
@@ -34,5 +37,8 @@ func init() {
 	}
 	if useREPMOV {
 		memmoveBits |= repmovsPreferred
+	}
+	if cpu.X86.HasAVX512F {
+		memmoveBits |= avx512Supported
 	}
 }
