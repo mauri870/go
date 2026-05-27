@@ -136,6 +136,39 @@ func selectgo(cas0 *scase, order0 *uint16, pc0 *uintptr, nsends, nrecvs int, blo
 	lockorder := order1[ncases:][:ncases:ncases]
 	// NOTE: pollorder/lockorder's underlying array was not zero-initialized by compiler.
 
+	// Fast path for 2-case selects in non-instrumented builds.
+	// Tries each case non-blocking in random order, acquiring at most one
+	// channel lock instead of both. chanrecv and chansend have their own
+	// lock-free fast paths when a channel is empty (two atomic loads, no
+	// mutex), so a failed attempt here is cheap.
+	//
+	// Race, msan, and asan builds skip this path because the full selectgo
+	// pass provides the required memory annotations (bufrecv/bufsend labels).
+	if ncases == 2 && !raceenabled && !msanenabled && !asanenabled {
+		first, second := 0, 1
+		if cheaprandn(2) != 0 {
+			first, second = 1, 0
+		}
+		if c := scases[first].c; c != nil {
+			if first < nsends {
+				if chansend(c, scases[first].elem, false, 0) {
+					return first, false
+				}
+			} else if selected, recvOK := chanrecv(c, scases[first].elem, false); selected {
+				return first, recvOK
+			}
+		}
+		if c := scases[second].c; c != nil {
+			if second < nsends {
+				if chansend(c, scases[second].elem, false, 0) {
+					return second, false
+				}
+			} else if selected, recvOK := chanrecv(c, scases[second].elem, false); selected {
+				return second, recvOK
+			}
+		}
+	}
+
 	// Even when raceenabled is true, there might be select
 	// statements in packages compiled without -race (e.g.,
 	// ensureSigM in runtime/signal_unix.go).

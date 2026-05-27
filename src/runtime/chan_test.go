@@ -858,6 +858,24 @@ func BenchmarkSelectUncontended(b *testing.B) {
 	})
 }
 
+// BenchmarkSelect2RecvReady measures the 2-case no-default select fast path
+// where one channel is always immediately ready. This is the canonical
+// data-channel + ctx.Done() pattern.
+func BenchmarkSelect2RecvReady(b *testing.B) {
+	b.RunParallel(func(pb *testing.PB) {
+		ch := make(chan int, 1)
+		done := make(chan struct{})
+		ch <- 0
+		for pb.Next() {
+			select {
+			case <-ch:
+				ch <- 0
+			case <-done:
+			}
+		}
+	})
+}
+
 func BenchmarkSelectSyncContended(b *testing.B) {
 	myc1 := make(chan int)
 	myc2 := make(chan int)
@@ -1217,4 +1235,119 @@ func localWork(w int) {
 	if alwaysFalse {
 		workSink += foo
 	}
+}
+
+// BenchmarkSelectProdCons2 mirrors BenchmarkSelectProdCons using 2-case selects
+// (the canonical data channel + cancellation pattern) instead of 3-case.
+// Both producer and consumer goroutines use select { case …; case <-myclose },
+// modelling the real pattern of a worker pool with context cancellation.
+func BenchmarkSelectProdCons2(b *testing.B) {
+	const CallsPerSched = 1000
+	procs := runtime.GOMAXPROCS(-1)
+	N := int32(b.N / CallsPerSched)
+	c := make(chan bool, 2*procs)
+	myc := make(chan int, 128)
+	myclose := make(chan bool)
+	for p := 0; p < procs; p++ {
+		go func() {
+			// Producer: sends work items to myc.
+			foo := 0
+			for atomic.AddInt32(&N, -1) >= 0 {
+				for g := 0; g < CallsPerSched; g++ {
+					for i := 0; i < 100; i++ {
+						foo *= 2
+						foo /= 2
+					}
+					select {
+					case myc <- 1:
+					case <-myclose:
+					}
+				}
+			}
+			myc <- 0
+			c <- foo == 42
+		}()
+		go func() {
+			// Consumer: drains myc while watching for shutdown.
+			foo := 0
+		loop:
+			for {
+				select {
+				case v := <-myc:
+					if v == 0 {
+						break loop
+					}
+				case <-myclose:
+				}
+				for i := 0; i < 100; i++ {
+					foo *= 2
+					foo /= 2
+				}
+			}
+			c <- foo == 42
+		}()
+	}
+	for p := 0; p < procs; p++ {
+		<-c
+		<-c
+	}
+}
+
+// benchmarkSelectServerLoop models a server handler goroutine that receives
+// requests from a shared channel and checks a cancellation signal on every
+// iteration, with variable handler work. It shows how much of the select
+// overhead survives as handler cost grows.
+func benchmarkSelectServerLoop(b *testing.B, work int) {
+	procs := runtime.GOMAXPROCS(-1)
+	requests := make(chan int, 128*procs)
+	done := make(chan struct{})
+
+	// Producers: keep requests saturated throughout the benchmark.
+	for i := 0; i < procs; i++ {
+		go func() {
+			for {
+				select {
+				case requests <- 1:
+				case <-done:
+					return
+				}
+			}
+		}()
+	}
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			select {
+			case <-requests:
+				localWork(work)
+			case <-done:
+			}
+		}
+	})
+	close(done)
+}
+
+func BenchmarkSelectServerLoopWork0(b *testing.B)     { benchmarkSelectServerLoop(b, 0) }
+func BenchmarkSelectServerLoopWork100(b *testing.B)   { benchmarkSelectServerLoop(b, 100) }
+func BenchmarkSelectServerLoopWork1000(b *testing.B)  { benchmarkSelectServerLoop(b, 1000) }
+func BenchmarkSelectServerLoopWork10000(b *testing.B) { benchmarkSelectServerLoop(b, 10000) }
+
+// BenchmarkSelect3RecvReady is the same pattern as BenchmarkSelect2RecvReady
+// but with an extra idle channel, forcing it through the full selectgo path.
+func BenchmarkSelect3RecvReady(b *testing.B) {
+	b.RunParallel(func(pb *testing.PB) {
+		ch := make(chan int, 1)
+		done := make(chan struct{})
+		extra := make(chan struct{})
+		ch <- 0
+		for pb.Next() {
+			select {
+			case <-ch:
+				ch <- 0
+			case <-done:
+			case <-extra:
+			}
+		}
+	})
 }
