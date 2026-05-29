@@ -102,6 +102,91 @@ func TestCas128Unaligned(t *testing.T) {
 	atomic.Cas128(misaligned, 0, 0, 0, 0)
 }
 
+// alignedPair128p returns a 16-byte-aligned *[2]unsafe.Pointer inside buf.
+func alignedPair128p(buf *[3]unsafe.Pointer) *[2]unsafe.Pointer {
+	if uintptr(unsafe.Pointer(&buf[0]))&15 == 0 {
+		return (*[2]unsafe.Pointer)(buf[:2])
+	}
+	return (*[2]unsafe.Pointer)(buf[1:])
+}
+
+// misalignedPair128p returns a *[2]unsafe.Pointer inside buf that is
+// pointer-aligned but not 16-byte aligned, to test the panic path.
+func misalignedPair128p(buf *[3]unsafe.Pointer) *[2]unsafe.Pointer {
+	if uintptr(unsafe.Pointer(&buf[0]))&15 == 0 {
+		return (*[2]unsafe.Pointer)(buf[1:])
+	}
+	return (*[2]unsafe.Pointer)(buf[:2])
+}
+
+func TestCas128p(t *testing.T) {
+	var buf [3]unsafe.Pointer
+	pair := alignedPair128p(&buf)
+
+	var a, b, c, d int
+	pa, pb, pc, pd := unsafe.Pointer(&a), unsafe.Pointer(&b), unsafe.Pointer(&c), unsafe.Pointer(&d)
+
+	// Successful CAS from (nil, nil) to (pa, pb).
+	if !atomic.Cas128p(pair, nil, nil, pa, pb) {
+		t.Fatal("Cas128p: should have succeeded from nil")
+	}
+	if pair[0] != pa || pair[1] != pb {
+		t.Fatal("Cas128p corrupt write")
+	}
+
+	// Mismatch on low half: should fail without writing.
+	if atomic.Cas128p(pair, nil, pb, pc, pd) {
+		t.Fatal("Cas128p: should have failed on low-half mismatch")
+	}
+	// Mismatch on high half: should fail without writing.
+	if atomic.Cas128p(pair, pa, nil, pc, pd) {
+		t.Fatal("Cas128p: should have failed on high-half mismatch")
+	}
+	if pair[0] != pa || pair[1] != pb {
+		t.Fatal("Cas128p wrote on failed CAS")
+	}
+
+	// Concurrent test: G goroutines all race to CAS from (nil, nil) to (pa, pb).
+	// Exactly one should win — the atomic guarantee ensures no double-write.
+	pair[0], pair[1] = nil, nil
+	const G = 32
+	wins := make(chan bool, G)
+	for g := 0; g < G; g++ {
+		go func() {
+			wins <- atomic.Cas128p(pair, nil, nil, pa, pb)
+		}()
+	}
+	var total int
+	for g := 0; g < G; g++ {
+		if <-wins {
+			total++
+		}
+	}
+	if total != 1 {
+		t.Errorf("Cas128p: %d goroutines won the race, want exactly 1", total)
+	}
+	if pair[0] != pa || pair[1] != pb {
+		t.Error("Cas128p: pair not set correctly after concurrent CAS")
+	}
+}
+
+func TestCas128pUnaligned(t *testing.T) {
+	var buf [3]unsafe.Pointer
+	misaligned := misalignedPair128p(&buf)
+
+	defer func() {
+		err := recover()
+		const want = "unaligned 128-bit atomic operation"
+		if err == nil {
+			t.Fatal("Cas128p on misaligned address did not panic")
+		}
+		if s, _ := err.(string); s != want {
+			t.Fatalf("Cas128p: got panic %q, want %q", err, want)
+		}
+	}()
+	atomic.Cas128p(misaligned, nil, nil, nil, nil)
+}
+
 func BenchmarkCas128(b *testing.B) {
 	var buf [3]uint64
 	pair := alignedPair128(&buf)

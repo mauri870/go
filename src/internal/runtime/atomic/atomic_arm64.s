@@ -262,6 +262,10 @@ ok:
 	RET
 #endif
 
+// func Cas128p(ptr *[2]unsafe.Pointer, old1, old2, new1, new2 unsafe.Pointer) bool
+TEXT ·Cas128p(SB), NOSPLIT, $0-41
+	JMP	·Cas128(SB)
+
 // func Cas128(ptr *[2]uint64, old1, old2, new1, new2 uint64) bool
 // Atomically:
 //	if (*ptr)[0] == old1 && (*ptr)[1] == old2 {

@@ -99,6 +99,9 @@ func Cas64(ptr *uint64, old, new uint64) bool
 func Cas128(ptr *[2]uint64, old1, old2, new1, new2 uint64) bool
 
 //go:noescape
+func Cas128p(ptr *[2]unsafe.Pointer, old1, old2, new1, new2 unsafe.Pointer) bool
+
+//go:noescape
 func CasRel(ptr *uint32, old, new uint32) bool
 
 //go:noescape

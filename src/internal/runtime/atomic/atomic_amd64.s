@@ -55,6 +55,10 @@ TEXT ·Cas64(SB), NOSPLIT, $0-25
 	SETEQ	ret+24(FP)
 	RET
 
+// func Cas128p(ptr *[2]unsafe.Pointer, old1, old2, new1, new2 unsafe.Pointer) bool
+TEXT ·Cas128p(SB), NOSPLIT, $0-41
+	JMP	·Cas128(SB)
+
 // func Casp1(ptr *unsafe.Pointer, old, new unsafe.Pointer) bool
 // Atomically:
 //	if *ptr == old {

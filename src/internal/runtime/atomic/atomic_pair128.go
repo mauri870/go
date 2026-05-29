@@ -4,8 +4,6 @@
 
 package atomic
 
-import "unsafe"
-
 // Load128 atomically loads the pair stored at *ptr and returns it.
 // ptr must be 16-byte aligned.
 //
@@ -48,16 +46,3 @@ func Swap128(ptr *[2]uint64, new1, new2 uint64) (old1, old2 uint64) {
 	}
 }
 
-// Cas128p atomically compares the 16 bytes at *ptr (treated as two
-// unsafe.Pointer-sized words) to (old1, old2) and, if equal, replaces them
-// with (new1, new2). ptr must be 16-byte aligned.
-// Like Casp1 but for a 128-bit pair of pointers; no write barrier.
-//
-//go:nosplit
-func Cas128p(ptr *[2]unsafe.Pointer, old1, old2, new1, new2 unsafe.Pointer) bool {
-	return Cas128(
-		(*[2]uint64)(unsafe.Pointer(ptr)),
-		uint64(uintptr(old1)), uint64(uintptr(old2)),
-		uint64(uintptr(new1)), uint64(uintptr(new2)),
-	)
-}
