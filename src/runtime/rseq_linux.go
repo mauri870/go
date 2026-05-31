@@ -72,17 +72,22 @@ func rseqUnregister(mp *m) {
 	mp.rseqState = 0
 }
 
-// getcpuid returns the CPU number of the current OS thread as maintained
-// by the kernel via the rseq ABI. The value is updated by the kernel on
-// every reschedule and is always in [0, GOMAXPROCS).
+// getcpuid returns the CPU number of the current OS thread.
 //
-// Returns -1 if rseq is not registered for this thread (unsupported kernel
-// or registration failed).
+// It first tries the rseq ABI (a single TLS load, ~1 ns). If rseq is not
+// registered for this thread — most commonly because glibc pre-registered
+// rseq with its own struct before mstart1 ran (CGO_ENABLED=1) — it falls
+// back to getcpuidFallback, which is architecture-specific: on amd64 this
+// uses the RDPID instruction (~3 cycles, no syscall) when the CPU supports
+// it; on arm64 and other architectures it returns -1.
+//
+// A return value of -1 means no CPU ID is available; callers must fall back
+// to a safe alternative (e.g. slot 0 or procPin).
 //
 //go:nosplit
 func getcpuid() int32 {
-	if getg().m.rseqState == 0 {
-		return -1
+	if getg().m.rseqState != 0 {
+		return int32((*rseqABI)(unsafe.Pointer(getg().m.rseqState)).cpuID)
 	}
-	return int32((*rseqABI)(unsafe.Pointer(getg().m.rseqState)).cpuID)
+	return getcpuidFallback()
 }

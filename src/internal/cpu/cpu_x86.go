@@ -59,6 +59,7 @@ const (
 	cpuid_GFNI             = 1 << 8
 	cpuid_AVX512VPCLMULQDQ = 1 << 10
 	cpuid_AVX512_BITALG    = 1 << 12
+	cpuid_RDPID            = 1 << 22
 
 	// edx bits
 	cpuid_FSRM = 1 << 4
@@ -195,6 +196,7 @@ func doinit() {
 		X86.HasAVX512BITALG = isSet(ecx7, cpuid_AVX512_BITALG)
 	}
 
+	X86.HasRDPID = isSet(ecx7, cpuid_RDPID)
 	X86.HasFSRM = isSet(edx7, cpuid_FSRM)
 
 	var maxExtendedInformation uint32
