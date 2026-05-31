@@ -37,6 +37,11 @@ type mOS struct {
 	// mmap invocation in vgetrandomGetState().
 	vgetrandomState uintptr
 
+	// rseqState is a pointer to this thread's rseqABI struct registered
+	// with the kernel via SYS_rseq. Zero if rseq is unsupported or
+	// registration failed.
+	rseqState uintptr
+
 	waitsema uint32 // semaphore for parking on locks
 }
 

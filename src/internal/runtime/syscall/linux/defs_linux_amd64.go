@@ -5,6 +5,7 @@
 package linux
 
 const (
+	SYS_RSEQ          = 334
 	SYS_CLOSE         = 3
 	SYS_MPROTECT      = 10
 	SYS_FCNTL         = 72

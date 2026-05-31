@@ -40,6 +40,7 @@ var ParseByteCount = parseByteCount
 
 var Nanotime = nanotime
 var Cputicks = cputicks
+var Getcpuid = getcpuid
 var CyclesPerSecond = pprof_cyclesPerSecond
 var NetpollBreak = netpollBreak
 var Usleep = usleep

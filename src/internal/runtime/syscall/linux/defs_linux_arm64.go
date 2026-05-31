@@ -5,6 +5,7 @@
 package linux
 
 const (
+	SYS_RSEQ          = 293
 	SYS_CLOSE         = 57
 	SYS_EPOLL_CREATE1 = 20
 	SYS_EPOLL_CTL     = 21

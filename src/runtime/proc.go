@@ -1926,6 +1926,7 @@ func mstart1() {
 
 	asminit()
 	minit()
+	rseqRegister(gp.m)
 
 	// Install signal handlers; after minit so that minit can
 	// prepare the thread to be able to handle the signals.
@@ -2029,6 +2030,9 @@ func mexit(osStack bool) {
 		// won't write to it when calling VDSO code.
 		mp.gsignal = nil
 	}
+
+	// Unregister rseq for this thread.
+	rseqUnregister(mp)
 
 	// Free vgetrandom state.
 	vgetrandomDestroy(mp)
