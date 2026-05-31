@@ -19,7 +19,7 @@ func goCas128(ptr *[2]uint64, old1, old2, new1, new2 uint64) bool {
 		panicUnaligned128()
 	}
 	_ = *ptr // fault on nil before taking the lock
-	l := pairAddrLock(ptr)
+	l := pairAddrLock(unsafe.Pointer(ptr))
 	l.lock()
 	ok := false
 	if ptr[0] == old1 && ptr[1] == old2 {
@@ -55,6 +55,6 @@ var pairLocktab [57]struct {
 }
 
 //go:nosplit
-func pairAddrLock(addr *[2]uint64) *pairSpinlock {
-	return &pairLocktab[(uintptr(unsafe.Pointer(addr))>>4)%uintptr(len(pairLocktab))].l
+func pairAddrLock(addr unsafe.Pointer) *pairSpinlock {
+	return &pairLocktab[(uintptr(addr)>>4)%uintptr(len(pairLocktab))].l
 }

@@ -121,29 +121,20 @@ func (s *StdSizes) Alignof(T Type) (result int64) {
 	return a
 }
 
-func IsSyncAtomicAlign64(T Type) bool {
+func isSyncAtomicAlignN(T Type, name string) bool {
 	named := asNamed(T)
 	if named == nil {
 		return false
 	}
 	obj := named.Obj()
-	return obj.Name() == "align64" &&
+	return obj.Name() == name &&
 		obj.Pkg() != nil &&
 		(obj.Pkg().Path() == "sync/atomic" ||
 			obj.Pkg().Path() == "internal/runtime/atomic")
 }
 
-func IsSyncAtomicAlign128(T Type) bool {
-	named := asNamed(T)
-	if named == nil {
-		return false
-	}
-	obj := named.Obj()
-	return obj.Name() == "align128" &&
-		obj.Pkg() != nil &&
-		(obj.Pkg().Path() == "sync/atomic" ||
-			obj.Pkg().Path() == "internal/runtime/atomic")
-}
+func IsSyncAtomicAlign64(T Type) bool  { return isSyncAtomicAlignN(T, "align64") }
+func IsSyncAtomicAlign128(T Type) bool { return isSyncAtomicAlignN(T, "align128") }
 
 func (s *StdSizes) Offsetsof(fields []*Var) []int64 {
 	offsets := make([]int64, len(fields))

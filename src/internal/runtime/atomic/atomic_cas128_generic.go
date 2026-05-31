@@ -29,7 +29,7 @@ func Cas128p(ptr *[2]unsafe.Pointer, old1, old2, new1, new2 unsafe.Pointer) bool
 		panicUnaligned128()
 	}
 	_ = *ptr // fault on nil before taking the lock
-	l := pairAddrLock((*[2]uint64)(unsafe.Pointer(ptr)))
+	l := pairAddrLock(unsafe.Pointer(ptr))
 	l.lock()
 	ok := false
 	if ptr[0] == old1 && ptr[1] == old2 {
