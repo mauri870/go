@@ -18,26 +18,19 @@ type PointerPair[T1, T2 any] struct {
 	_ [0]*T2
 
 	_ noCopy
+	_ align128
 
-	// p10/p20 and p11/p21 are two candidate pairs for the 16-byte-aligned atomic
-	// slot. addr() selects the pair whose first element is 16-byte aligned.
-	// The unselected pair's fields are always nil.
-	p10 *T1
-	p20 *T2
-	_   uint64 // shifts pair 1 so that p11 is 16-byte aligned when p10 is not
-	p11 *T1
-	p21 *T2
+	p1 *T1
+	p2 *T2
 }
 
 // addr returns the 16-byte-aligned *[2]unsafe.Pointer inside x that holds the
-// atomic pair.
+// atomic pair. The struct's align128 field guarantees that x is 16-byte aligned,
+// so p1 is always 16-byte aligned.
 //
 //go:nosplit
 func (x *PointerPair[T1, T2]) addr() *[2]unsafe.Pointer {
-	if uintptr(unsafe.Pointer(&x.p10))&15 == 0 {
-		return (*[2]unsafe.Pointer)(unsafe.Pointer(&x.p10))
-	}
-	return (*[2]unsafe.Pointer)(unsafe.Pointer(&x.p11))
+	return (*[2]unsafe.Pointer)(unsafe.Pointer(&x.p1))
 }
 
 // Load atomically loads and returns the pair stored in x.
