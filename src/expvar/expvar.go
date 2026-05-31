@@ -35,7 +35,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"unicode/utf8"
-	_ "unsafe" // for go:linkname
 )
 
 // Var is an abstract type for all exported variables.
@@ -51,44 +50,13 @@ type jsonVar interface {
 	appendJSON(b []byte) []byte
 }
 
-// intSlot is a cache-line-padded int64 used by the per-CPU slots in Int.
-type intSlot struct {
-	val int64
-	_   [56]byte // pad to 64-byte cache line
-}
-
 // Int is a 64-bit integer variable that satisfies the [Var] interface.
-//
-// Add uses the rseq ABI (when available) to select a per-CPU slot, so
-// concurrent increments on different CPUs hit distinct cache lines instead
-// of contending on a single global atomic. Value sums all slots.
 type Int struct {
-	// slots is allocated lazily on first use; length equals runtime.NumCPU().
-	slots atomic.Pointer[[]intSlot]
-}
-
-func (v *Int) getSlots() []intSlot {
-	if sp := v.slots.Load(); sp != nil {
-		return *sp
-	}
-	s := make([]intSlot, runtime.NumCPU())
-	sp := &s
-	if v.slots.CompareAndSwap(nil, sp) {
-		return s
-	}
-	return *v.slots.Load()
+	i atomic.Int64
 }
 
 func (v *Int) Value() int64 {
-	sp := v.slots.Load()
-	if sp == nil {
-		return 0
-	}
-	var sum int64
-	for i := range *sp {
-		sum += atomic.LoadInt64(&(*sp)[i].val)
-	}
-	return sum
+	return v.i.Load()
 }
 
 func (v *Int) String() string {
@@ -96,36 +64,16 @@ func (v *Int) String() string {
 }
 
 func (v *Int) appendJSON(b []byte) []byte {
-	return strconv.AppendInt(b, v.Value(), 10)
+	return strconv.AppendInt(b, v.i.Load(), 10)
 }
 
-// Add adds delta to v. Concurrent Adds on different CPUs operate on
-// separate cache lines, avoiding the contention of a single global atomic.
 func (v *Int) Add(delta int64) {
-	s := v.getSlots()
-	id := runtime_getcpuid()
-	if id < 0 || id >= len(s) {
-		id = 0
-	}
-	atomic.AddInt64(&s[id].val, delta)
+	v.i.Add(delta)
 }
 
-// Set sets v to value. Concurrent Adds may transiently race with Set;
-// this is the same behaviour as the previous atomic.Int64 implementation.
 func (v *Int) Set(value int64) {
-	s := v.getSlots()
-	for i := range s {
-		atomic.StoreInt64(&s[i].val, 0)
-	}
-	atomic.StoreInt64(&s[0].val, value)
+	v.i.Store(value)
 }
-
-// runtime_getcpuid returns the current CPU ID via the rseq ABI, or -1
-// if rseq is unavailable (non-Linux, unsupported arch, or glibc build).
-// The implementation is in the runtime package (proc.go).
-//
-//go:linkname runtime_getcpuid
-func runtime_getcpuid() int
 
 // Float is a 64-bit float variable that satisfies the [Var] interface.
 type Float struct {

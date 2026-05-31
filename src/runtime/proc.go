@@ -7961,12 +7961,6 @@ func sync_runtime_procPin() int {
 	return procPin()
 }
 
-//go:linkname expvar_runtime_getcpuid expvar.runtime_getcpuid
-//go:nosplit
-func expvar_runtime_getcpuid() int {
-	return int(getcpuid())
-}
-
 //go:linkname sync_runtime_procUnpin sync.runtime_procUnpin
 //go:nosplit
 func sync_runtime_procUnpin() {
