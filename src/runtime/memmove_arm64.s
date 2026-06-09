@@ -29,6 +29,16 @@
 TEXT runtime·memmove<ABIInternal>(SB), NOSPLIT|NOFRAME, $0-24
 	CBZ	R2, copy0
 
+	// EXPERIMENTAL: FEAT_MOPS fast path, handles all sizes and overlaps.
+	// clang uses MOPS for > 256 bytes, should we do that?
+	MOVBU	runtime·arm64HasMOPS(SB), R3
+	CBZ	R3, mops_fallback
+	CPYP	(R1), R2, (R0)
+	CPYM	(R1), R2, (R0)
+	CPYE	(R1), R2, (R0)
+	RET
+
+mops_fallback:
 	// Small copies: 1..16 bytes
 	CMP	$16, R2
 	BLE	copy16
