@@ -65,6 +65,7 @@ func hwcapInit(os string) {
 	ARM64.HasDIT = isSet(HWCap, hwcap_DIT)
 	ARM64.HasSB = isSet(HWCap, hwcap_SB)
 	ARM64.HasMOPS = isSet(HWCap2, hwcap2_MOPS)
+	options = append(options, option{Name: "mops", Feature: &ARM64.HasMOPS})
 
 	// The Samsung S9+ kernel reports support for atomics, but not all cores
 	// actually support them, resulting in SIGILL. See issue #28431.
