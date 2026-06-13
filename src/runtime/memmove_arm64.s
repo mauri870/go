@@ -124,6 +124,15 @@ copy_long:
 	// FEAT_MOPS fast path for large copies. clang uses MOPS for > 256 bytes;
 	// below that, unrolled LDP/STP is faster due to MOPS microarchitectural
 	// prologue overhead.
+#ifdef GOARM64_MOPS
+	// GOARM64 >= v8.8: FEAT_MOPS is mandatory, skip runtime detection.
+	CMP	$256, R2
+	BLE	copy_long_scalar
+	CPYP	(R1), R2, (R0)
+	CPYM	(R1), R2, (R0)
+	CPYE	(R1), R2, (R0)
+	RET
+#else
 	CMP	$256, R2
 	BLE	copy_long_scalar
 	MOVBU	runtime·arm64HasMOPS(SB), R3
@@ -132,6 +141,7 @@ copy_long:
 	CPYM	(R1), R2, (R0)
 	CPYE	(R1), R2, (R0)
 	RET
+#endif
 
 copy_long_scalar:
 	ADD	R1, R2, R4 // R4 points just past the last source byte
