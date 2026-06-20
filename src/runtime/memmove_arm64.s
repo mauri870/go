@@ -84,39 +84,32 @@ copy0:
 	RET
 
 	// Medium copies: 33..128 bytes.
+	// Use FLDPQ/FSTPQ (128-bit FP load/store pair) to halve the instruction
+	// count vs scalar LDP/STP: each pair moves 32 bytes in one instruction.
+	// F0-F7 are caller-saved so safe to use as scratch here.
 copy32_128:
 	ADD	R1, R2, R4          // R4 points just past the last source byte
 	ADD	R0, R2, R5          // R5 points just past the last destination byte
-	LDP	(R1), (R6, R7)
-	LDP	16(R1), (R8, R9)
-	LDP	-32(R4), (R10, R11)
-	LDP	-16(R4), (R12, R13)
+	FLDPQ	(R1), (F0, F1)      // head 32B: F0=[0:15], F1=[16:31]
+	FLDPQ	-32(R4), (F2, F3)   // tail 32B: F2=[n-32:n-17], F3=[n-16:n-1]
 	CMP	$64, R2
 	BHI	copy128
-	STP	(R6, R7), (R0)
-	STP	(R8, R9), 16(R0)
-	STP	(R10, R11), -32(R5)
-	STP	(R12, R13), -16(R5)
+	FSTPQ	(F0, F1), (R0)
+	FSTPQ	(F2, F3), -32(R5)
 	RET
 
 	// Copy 65..128 bytes.
 copy128:
-	LDP	32(R1), (R14, R15)
-	LDP	48(R1), (R16, R17)
+	FLDPQ	32(R1), (F4, F5)    // head+32 32B: F4=[32:47], F5=[48:63]
 	CMP	$96, R2
 	BLS	copy96
-	LDP	-64(R4), (R2, R3)
-	LDP	-48(R4), (R1, R4)
-	STP	(R2, R3), -64(R5)
-	STP	(R1, R4), -48(R5)
+	FLDPQ	-64(R4), (F6, F7)   // F6=[n-64:n-49], F7=[n-48:n-33]
+	FSTPQ	(F6, F7), -64(R5)
 
 copy96:
-	STP	(R6, R7), (R0)
-	STP	(R8, R9), 16(R0)
-	STP	(R14, R15), 32(R0)
-	STP	(R16, R17), 48(R0)
-	STP	(R10, R11), -32(R5)
-	STP	(R12, R13), -16(R5)
+	FSTPQ	(F0, F1), (R0)
+	FSTPQ	(F4, F5), 32(R0)
+	FSTPQ	(F2, F3), -32(R5)
 	RET
 
 	// Copy more than 128 bytes.
