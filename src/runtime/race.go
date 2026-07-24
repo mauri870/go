@@ -54,12 +54,18 @@ func RaceErrors() int {
 // raceLoad128 is the race-instrumented 128-bit load.
 // Body is in race_<arch>.s and forwards to __tsan_go_atomic128_load.
 //
+// sync/atomic linknames its load128 to this.
+//
+//go:linkname raceLoad128
 //go:noescape
 func raceLoad128(addr *[2]uint64) (lo, hi uint64)
 
 // raceStore128 is the race-instrumented 128-bit store.
 // Body is in race_<arch>.s and forwards to __tsan_go_atomic128_store.
 //
+// sync/atomic linknames its store128 to this.
+//
+//go:linkname raceStore128
 //go:noescape
 func raceStore128(addr *[2]uint64, lo, hi uint64)
 
@@ -82,6 +88,9 @@ func raceSwap128(addr *[2]uint64, new1, new2 uint64) (old1, old2 uint64) {
 // raceCas128 is the race-instrumented Compare-And-Swap for 128-bit pairs.
 // Body is in race_<arch>.s and forwards to __tsan_go_atomic128_compare_exchange.
 //
+// sync/atomic linknames its cas128 to this.
+//
+//go:linkname raceCas128
 //go:noescape
 func raceCas128(addr *[2]uint64, old1, old2, new1, new2 uint64) bool
 
