@@ -4,7 +4,10 @@
 
 package atomic
 
-import "unsafe"
+import (
+	iatomic "internal/runtime/atomic"
+	"unsafe"
+)
 
 // A PointerPair is an atomic pair of typed pointers (*T1, *T2).
 // The zero value is a pair of nil pointers.
@@ -17,20 +20,12 @@ type PointerPair[T1, T2 any] struct {
 	_ [0]*T1
 	_ [0]*T2
 
-	_ noCopy
-	_ align128
-
-	p1 *T1
-	p2 *T2
+	v iatomic.PointerPair
 }
 
-// addr returns the 16-byte-aligned *[2]unsafe.Pointer inside x that holds the
-// atomic pair. The struct's align128 field guarantees that x is 16-byte aligned,
-// so p1 is always 16-byte aligned.
-//
 //go:nosplit
 func (x *PointerPair[T1, T2]) addr() *[2]unsafe.Pointer {
-	return (*[2]unsafe.Pointer)(unsafe.Pointer(&x.p1))
+	return x.v.Addr()
 }
 
 // Load atomically loads and returns the pair stored in x.

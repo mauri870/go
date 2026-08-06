@@ -55,9 +55,9 @@ TEXT ·Cas64(SB), NOSPLIT, $0-25
 	SETEQ	ret+24(FP)
 	RET
 
-// func Cas128p(ptr *[2]unsafe.Pointer, old1, old2, new1, new2 unsafe.Pointer) bool
-TEXT ·Cas128p(SB), NOSPLIT, $0-41
-	JMP	·Cas128(SB)
+// func cas128p(ptr *[2]unsafe.Pointer, old1, old2, new1, new2 unsafe.Pointer) bool
+TEXT ·cas128p(SB), NOSPLIT, $0-41
+	JMP	·cas128(SB)
 
 // func Casp1(ptr *unsafe.Pointer, old, new unsafe.Pointer) bool
 // Atomically:
@@ -76,7 +76,7 @@ TEXT ·Casp1(SB), NOSPLIT, $0-25
 	SETEQ	ret+24(FP)
 	RET
 
-// func Cas128(ptr *[2]uint64, old1, old2, new1, new2 uint64) bool
+// func cas128(ptr *[2]uint64, old1, old2, new1, new2 uint64) bool
 // Atomically:
 //	if (*ptr)[0] == old1 && (*ptr)[1] == old2 {
 //		(*ptr)[0] = new1
@@ -88,7 +88,7 @@ TEXT ·Casp1(SB), NOSPLIT, $0-25
 //
 // CMPXCHG16B requires its memory operand to be 16-byte aligned;
 // unaligned accesses fault.
-TEXT ·Cas128(SB), NOSPLIT, $0-41
+TEXT ·cas128(SB), NOSPLIT, $0-41
 #ifndef hasCMPXCHG16B
 	CMPB	internal∕cpu·X86+const_offsetX86HasCX16(SB), $1
 	JEQ	2(PC)

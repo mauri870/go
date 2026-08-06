@@ -570,6 +570,70 @@ func (p *Pointer[T]) CompareAndSwap(old, new *T) bool {
 	return p.u.CompareAndSwap(unsafe.Pointer(old), unsafe.Pointer(new))
 }
 
+// Uint64Pair is an atomically accessed pair of uint64 values.
+//
+// 16-byte aligned on all platforms, ensuring that hardware 128-bit
+// atomic compare-and-swap operations can be used where available.
+//
+// A Uint64Pair must not be copied.
+type Uint64Pair struct {
+	noCopy noCopy
+	_      align128
+	value  [2]uint64
+}
+
+// Load returns the current pair of uint64 values.
+// It is intended for use in compare-and-swap retry loops: if the values
+// change between the two loads, CompareAndSwap will fail and the caller
+// retries.
+//
+//go:nosplit
+func (p *Uint64Pair) Load() (uint64, uint64) {
+	return load128(&p.value)
+}
+
+// Store atomically stores (v1, v2) into p.
+//
+//go:nosplit
+func (p *Uint64Pair) Store(v1, v2 uint64) {
+	store128(&p.value, v1, v2)
+}
+
+// CompareAndSwap atomically compares p's value with (old1, old2) and,
+// if equal, replaces it with (new1, new2).
+// It reports whether the swap ran.
+//
+//go:nosplit
+func (p *Uint64Pair) CompareAndSwap(old1, old2, new1, new2 uint64) bool {
+	return cas128(&p.value, old1, old2, new1, new2)
+}
+
+// Addr returns a pointer to the underlying [2]uint64 storage.
+// Callers (e.g. sync/atomic) use this to call their own TSan-aware wrappers
+// instead of going through the methods above.
+//
+//go:nosplit
+func (p *Uint64Pair) Addr() *[2]uint64 {
+	return &p.value
+}
+
+// PointerPair holds two unsafe.Pointer values atomically.
+// It is the low-level building block used by sync/atomic.PointerPair.
+//
+// A PointerPair must not be copied.
+type PointerPair struct {
+	noCopy noCopy
+	_      align128
+	p1, p2 unsafe.Pointer
+}
+
+// Addr returns a pointer to the two-slot unsafe.Pointer storage.
+//
+//go:nosplit
+func (p *PointerPair) Addr() *[2]unsafe.Pointer {
+	return (*[2]unsafe.Pointer)(unsafe.Pointer(&p.p1))
+}
+
 // noCopy may be embedded into structs which must not be copied
 // after the first use.
 //

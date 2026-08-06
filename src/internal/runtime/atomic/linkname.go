@@ -20,11 +20,11 @@ import _ "unsafe" // for linkname
 //go:linknamestd Xchguintptr
 //go:linknamestd Cas
 //go:linknamestd Cas64
-//go:linknamestd Cas128
-//go:linknamestd Cas128p
-//go:linknamestd Load128
-//go:linknamestd Store128
-//go:linknamestd Swap128
+//go:linknamestd cas128
+//go:linknamestd cas128p
+//go:linknamestd load128
+//go:linknamestd store128
+//go:linknamestd swap128
 //go:linknamestd Casint32
 //go:linknamestd Casint64
 //go:linknamestd Casuintptr
