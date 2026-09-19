@@ -11,6 +11,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/mldsa"
+	"crypto/mlkem"
 	"crypto/rsa"
 	"crypto/x509/pkix"
 	"encoding/asn1"
@@ -379,6 +380,19 @@ func parsePublicKey(keyData *publicKeyInfo) (any, error) {
 			return nil, errors.New("x509: X25519 key encoded with illegal parameters")
 		}
 		return ecdh.X25519().NewPublicKey(data)
+	case oid.Equal(oidPublicKeyMLKEM768):
+		// RFC 9935, Section 3
+		// > The parameters field of the AlgorithmIdentifier for the ML-KEM
+		// > public key MUST be absent.
+		if len(params.FullBytes) != 0 {
+			return nil, errors.New("x509: ML-KEM-768 key encoded with illegal parameters")
+		}
+		return mlkem.NewEncapsulationKey768(data)
+	case oid.Equal(oidPublicKeyMLKEM1024):
+		if len(params.FullBytes) != 0 {
+			return nil, errors.New("x509: ML-KEM-1024 key encoded with illegal parameters")
+		}
+		return mlkem.NewEncapsulationKey1024(data)
 	case oid.Equal(oidPublicKeyDSA):
 		der := cryptobyte.String(data)
 		y := new(big.Int)
@@ -496,7 +510,12 @@ func parseSANExtension(der cryptobyte.String) (dnsNames, emailAddresses []string
 			uris = append(uris, uri)
 		case nameTypeIP:
 			switch len(data) {
-			case net.IPv4len, net.IPv6len:
+			case net.IPv6len:
+				if net.IP(data).To4() != nil {
+					return errors.New("x509: SAN iPAddress contains IPv4-mapped IPv6 address")
+				}
+				ipAddresses = append(ipAddresses, data)
+			case net.IPv4len:
 				ipAddresses = append(ipAddresses, data)
 			default:
 				return errors.New("x509: cannot parse IP address of length " + strconv.Itoa(len(data)))
@@ -626,12 +645,17 @@ func parseNameConstraintsExtension(out *Certificate, e pkix.Extension) (unhandle
 		return false, errors.New("x509: invalid NameConstraints extension")
 	}
 
-	if !havePermitted && !haveExcluded || len(permitted) == 0 && len(excluded) == 0 {
+	if !havePermitted && !haveExcluded {
 		// From RFC 5280, Section 4.2.1.10:
 		//   “either the permittedSubtrees field
 		//   or the excludedSubtrees MUST be
 		//   present”
 		return false, errors.New("x509: empty name constraints extension")
+	}
+	if (havePermitted && permitted.Empty()) ||
+		(haveExcluded && excluded.Empty()) {
+		// GeneralSubtrees has a SIZE constraint of 1..MAX.
+		return false, errors.New("x509: empty name constraints subtree sequence")
 	}
 
 	getValues := func(subtrees cryptobyte.String) (dnsNames []string, ips []*net.IPNet, emails, uriDomains []string, err error) {
@@ -681,6 +705,10 @@ func parseNameConstraintsExtension(out *Certificate, e pkix.Extension) (unhandle
 
 				if !isValidIPMask(mask) {
 					return nil, nil, nil, nil, fmt.Errorf("x509: IP constraint contained invalid mask %x", mask)
+				}
+
+				if len(ip) == net.IPv6len && net.IP(ip).To4() != nil {
+					return nil, nil, nil, nil, errors.New("x509: IP constraint contained IPv4-mapped IPv6 address")
 				}
 
 				ips = append(ips, &net.IPNet{IP: net.IP(ip), Mask: net.IPMask(mask)})

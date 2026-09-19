@@ -191,7 +191,7 @@ func simdCreditMultiplier(fn *ir.Func) int32 {
 	// awesome SIMD performance will be missed.
 	for _, v := range fn.ClosureVars {
 		if v.Type().IsSIMD() {
-			return 11 // 11 ought to be enough.
+			return 16 // <strike>11</strike> 16 ought to be enough.
 		}
 	}
 
@@ -205,13 +205,23 @@ func simdCreditMultiplier(fn *ir.Func) int32 {
 // possibility that a call to the function might have its score
 // adjusted downwards. If 'verbose' is set, then print a remark where
 // we boost the budget due to PGO.
-// Note that inlineCostOk has the final say on whether an inline will
+// Note that inlineCostOK has the final say on whether an inline will
 // happen; changes here merely make inlines possible.
 func inlineBudget(fn *ir.Func, profile *pgoir.Profile, relaxed bool, verbose bool) int32 {
 	// Update the budget for profile-guided inlining.
 	budget := int32(inlineMaxBudget)
 
 	budget *= simdCreditMultiplier(fn)
+
+	if strings.HasPrefix(ir.FuncName(fn), "runtime_mapaccess2") &&
+		fn.Sym().Pkg.Path == "internal/runtime/maps" {
+		// Increase budget for mapaccess2* functions so they could be
+		// inlined to mapaccess1* wrappers
+		budget = inlineHotMaxBudget
+		if verbose {
+			fmt.Printf("mapaccess enabled increased budget=%v for func=%v\n", budget, ir.PkgFuncName(fn))
+		}
+	}
 
 	if IsPgoHotFunc(fn, profile) {
 		budget = inlineHotMaxBudget
@@ -672,9 +682,9 @@ opSwitch:
 		v.budget -= inlineExtraPanicCost
 
 	case ir.ORECOVER:
-		// TODO: maybe we could allow inlining of recover() now?
-		v.reason = "call to recover"
-		return true
+		// recover matches panics to frames via stack unwinding
+		// (including inlined frames), so it is safe to inline.
+		v.budget -= v.extraCallCost
 
 	case ir.OCLOSURE:
 		if base.Debug.InlFuncsWithClosures == 0 {
@@ -912,7 +922,7 @@ func TryInlineCall(callerfn *ir.Func, call *ir.CallExpr, bigCaller bool, profile
 	}
 
 	if fn := inlCallee(callerfn, call.Fun, profile, false); fn != nil && typecheck.HaveInlineBody(fn) {
-		return mkinlcall(callerfn, call, fn, bigCaller, closureCalledOnce)
+		return mkinlcall(callerfn, call, fn, bigCaller, closureCalledOnce, profile)
 	}
 	return nil
 }
@@ -960,7 +970,7 @@ var SSADumpInline = func(*ir.Func) {}
 
 // InlineCall allows the inliner implementation to be overridden.
 // If it returns nil, the function will not be inlined.
-var InlineCall = func(callerfn *ir.Func, call *ir.CallExpr, fn *ir.Func, inlIndex int) *ir.InlinedCallExpr {
+var InlineCall = func(callerfn *ir.Func, call *ir.CallExpr, fn *ir.Func, inlIndex int, profile *pgoir.Profile) *ir.InlinedCallExpr {
 	base.Fatalf("inline.InlineCall not overridden")
 	panic("unreachable")
 }
@@ -974,6 +984,12 @@ var InlineCall = func(callerfn *ir.Func, call *ir.CallExpr, fn *ir.Func, inlInde
 //   - whether the inlined function is "hot" according to PGO.
 func inlineCostOK(n *ir.CallExpr, caller, callee *ir.Func, bigCaller, closureCalledOnce bool) (bool, int32, int32, bool) {
 	maxCost := int32(inlineMaxBudget)
+
+	if strings.HasPrefix(ir.FuncName(caller), "runtime_mapaccess1") && caller.Sym().Pkg.Path == "internal/runtime/maps" &&
+		strings.HasPrefix(ir.FuncName(callee), "runtime_mapaccess2") && callee.Sym().Pkg.Path == "internal/runtime/maps" {
+		// Raise cost to allow inlining of mapaccess2* functions to mapaccess1* wrappers
+		maxCost = inlineHotMaxBudget
+	}
 
 	if bigCaller {
 		// We use this to restrict inlining into very big functions.
@@ -1155,7 +1171,7 @@ func canInlineCallExpr(callerfn *ir.Func, n *ir.CallExpr, callee *ir.Func, bigCa
 // The result of mkinlcall MUST be assigned back to n, e.g.
 //
 //	n.Left = mkinlcall(n.Left, fn, isddd)
-func mkinlcall(callerfn *ir.Func, n *ir.CallExpr, fn *ir.Func, bigCaller, closureCalledOnce bool) *ir.InlinedCallExpr {
+func mkinlcall(callerfn *ir.Func, n *ir.CallExpr, fn *ir.Func, bigCaller, closureCalledOnce bool, profile *pgoir.Profile) *ir.InlinedCallExpr {
 	ok, score, hot := canInlineCallExpr(callerfn, n, fn, bigCaller, closureCalledOnce, true)
 	if !ok {
 		return nil
@@ -1236,7 +1252,7 @@ func mkinlcall(callerfn *ir.Func, n *ir.CallExpr, fn *ir.Func, bigCaller, closur
 		fmt.Printf("%v: Before inlining: %+v\n", ir.Line(n), n)
 	}
 
-	res := InlineCall(callerfn, n, fn, inlIndex)
+	res := InlineCall(callerfn, n, fn, inlIndex, profile)
 
 	if res == nil {
 		base.FatalfAt(n.Pos(), "inlining call to %v failed", fn.Nname.DiagName())

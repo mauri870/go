@@ -13,15 +13,19 @@ import (
 	"flag"
 	"fmt"
 	"go/build"
+	"go/parser"
+	"go/token"
 	"internal/platform"
 	"maps"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"cmd/go/internal/base"
 	"cmd/go/internal/cfg"
@@ -80,6 +84,18 @@ func isGccgoTool(tool string) bool {
 		return true
 	}
 	return false
+}
+
+// isMainPackage reports whether dir is a Go main package.
+// It excludes _test.go files since they cannot be built
+// as standalone tools (e.g. cmd/api has only test files).
+func isMainPackage(dir string) bool {
+	fset := token.NewFileSet()
+	pkgs, _ := parser.ParseDir(fset, dir, func(fi os.FileInfo) bool {
+		return !strings.HasSuffix(fi.Name(), "_test.go")
+	}, parser.PackageClauseOnly)
+	_, ok := pkgs["main"]
+	return ok
 }
 
 func init() {
@@ -157,6 +173,21 @@ func listTools(ld *modload.Loader, ctx context.Context) {
 		fmt.Fprintf(os.Stderr, "go: can't read tool directory: %s\n", err)
 		base.SetExitStatus(2)
 		return
+	}
+
+	// cmd/distpack strips some tools from the binary distribution
+	// to save space (see go.dev/issue/75960). Add back any missing
+	// builtin tools from the standard cmd/ directory.
+	if cmdEntries, err := os.ReadDir(filepath.Join(cfg.GOROOT, "src", "cmd")); err == nil {
+		toolSeen := make(map[string]bool)
+		for _, n := range names {
+			toolSeen[strings.TrimSuffix(strings.ToLower(n), cfg.ToolExeSuffix())] = true
+		}
+		for _, e := range cmdEntries {
+			if e.IsDir() && loadBuiltinTool(e.Name()) != "" && !toolSeen[e.Name()] {
+				names = append(names, e.Name())
+			}
+		}
 	}
 
 	ambiguous := make(map[string]bool) // names that can't be used as aliases because they are ambiguous
@@ -275,8 +306,13 @@ func loadBuiltinTool(toolName string) string {
 	}
 	// Create a fake package and check to see if it would be installed to the tool directory.
 	// If not, it's not a builtin tool.
+	// Also verify that the package is actually "main", since some cmd/
+	// packages like cmd/tools are not.
 	p := &load.Package{PackagePublic: load.PackagePublic{Name: "main", ImportPath: cmdTool, Goroot: true}}
 	if load.InstallTargetDir(p) != load.ToTool {
+		return ""
+	}
+	if !isMainPackage(filepath.Join(cfg.GOROOT, "src", cmdTool)) {
 		return ""
 	}
 	return cmdTool
@@ -392,15 +428,30 @@ func runBuiltTool(toolName string, env, cmdline []string) error {
 		return nil
 	}
 
-	toolCmd := &exec.Cmd{
-		Path:   cmdline[0],
-		Args:   cmdline,
-		Stdin:  os.Stdin,
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
-		Env:    env,
+	// The tool was just linked and cached into $GOCACHE (CacheExecutable), and
+	// is executed from there. A concurrent go process may still hold a writable
+	// descriptor to the same cached file, so the exec can fail with ETXTBSY
+	// ("text file busy"). Retry a few times with backoff, matching base.RunStdin
+	// and (*runTestActor).Act in cmd/go/internal/test. See #22220, #22315, #78204.
+	var toolCmd *exec.Cmd
+	var err error
+	for try := range 3 {
+		toolCmd = &exec.Cmd{
+			Path:   cmdline[0],
+			Args:   cmdline,
+			Stdin:  os.Stdin,
+			Stdout: os.Stdout,
+			Stderr: os.Stderr,
+			Env:    env,
+		}
+		err = toolCmd.Start()
+		if err == nil || !base.IsETXTBSY(err) {
+			break
+		}
+		// Another go process likely still has the cached file open for
+		// writing; it will close it shortly. Sleep and retry.
+		time.Sleep(100 * time.Millisecond << uint(try))
 	}
-	err := toolCmd.Start()
 	if err == nil {
 		c := make(chan os.Signal, 100)
 		signal.Notify(c, signalsToForward...)

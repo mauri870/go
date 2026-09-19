@@ -391,6 +391,8 @@ The available conditions are:
 	cmd/go GOOS/GOARCH != GOHOSTOS/GOHOSTARCH
 [default-cgo]
 	when CGO_ENABLED=1|0 was set in make.bash
+[default-pie]
+	-buildmode=default resolves to -buildmode=pie
 [exec:*]
 	<suffix> names an executable in the test binary's PATH
 [fuzz]
@@ -409,8 +411,6 @@ The available conditions are:
 	GOOS/GOARCH supports -msan
 [mustlinkext]
 	platform always requires external linking
-[net:*]
-	can connect to external network host <suffix>
 [pielinkext]
 	platform requires external linking for PIE
 [race]

@@ -80,7 +80,7 @@ func (fd *netFD) destroy() {
 }
 
 func (fd *netFD) Read(b []byte) (n int, err error) {
-	if !fd.ok() || fd.data == nil {
+	if fd == nil {
 		return 0, syscall.EINVAL
 	}
 	n, err = fd.pfd.Read(fd.data.Read, b)

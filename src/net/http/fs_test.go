@@ -52,6 +52,9 @@ var ServeFileRangeTests = []struct {
 	{r: "bytes=0-4", code: StatusPartialContent, ranges: []wantRange{{0, 5}}},
 	{r: "bytes=2-", code: StatusPartialContent, ranges: []wantRange{{2, testFileLen}}},
 	{r: "bytes=-5", code: StatusPartialContent, ranges: []wantRange{{testFileLen - 5, testFileLen}}},
+	{r: "Bytes=0-4", code: StatusPartialContent, ranges: []wantRange{{0, 5}}},
+	{r: "BYTES=2-", code: StatusPartialContent, ranges: []wantRange{{2, testFileLen}}},
+	{r: "bYtEs=-5", code: StatusPartialContent, ranges: []wantRange{{testFileLen - 5, testFileLen}}},
 	{r: "bytes=3-7", code: StatusPartialContent, ranges: []wantRange{{3, 8}}},
 	{r: "bytes=0-0,-2", code: StatusPartialContent, ranges: []wantRange{{0, 1}, {testFileLen - 2, testFileLen}}},
 	{r: "bytes=0-1,5-8", code: StatusPartialContent, ranges: []wantRange{{0, 2}, {5, 9}}},
@@ -269,10 +272,19 @@ func TestServeContentWithEmptyContentIgnoreRanges(t *testing.T) {
 
 var fsRedirectTestData = []struct {
 	original, redirect string
+	status             int
 }{
-	{"/test/index.html", "/test/"},
-	{"/test/testdata", "/test/testdata/"},
-	{"/test/testdata/file/", "/test/testdata/file"},
+	{"/test/index.html", "/test/", 200},
+	{"/test/testdata", "/test/testdata/", 200},
+	{"/test/testdata/file/", "/test/testdata/file", 200},
+	// Redirect attempts for path with escaped slashes should result in 404.
+	// However, escaped paths are okay if they do not trigger a redirect.
+	// See https://go.dev/issue/80289.
+	{"/test%2ftestdata", "/test/testdata", 404},
+	{"/test/testdata%2ffile/", "/test/testdata/file/", 404},
+	{"/test/testdata%2Findex.html", "/test/testdata/index.html", 404},
+	{"/test/testdata%2ffile", "/test/testdata/file", 200},
+	{"/test/testdata%2F", "/test/testdata/", 200},
 }
 
 func TestFSRedirect(t *testing.T) { run(t, testFSRedirect) }
@@ -287,6 +299,9 @@ func testFSRedirect(t *testing.T, mode testMode) {
 		res.Body.Close()
 		if g, e := res.Request.URL.Path, data.redirect; g != e {
 			t.Errorf("redirect from %s: got %s, want %s", data.original, g, e)
+		}
+		if res.StatusCode != data.status {
+			t.Errorf("redirect from %s: got status %d, want %d", data.original, res.StatusCode, data.status)
 		}
 	}
 }
@@ -326,7 +341,7 @@ func TestFileServerCleans(t *testing.T) {
 
 func TestFileServerEscapesNames(t *testing.T) { run(t, testFileServerEscapesNames) }
 func testFileServerEscapesNames(t *testing.T, mode testMode) {
-	const dirListPrefix = "<!doctype html>\n<meta name=\"viewport\" content=\"width=device-width\">\n<pre>\n"
+	const dirListPrefix = "<!doctype html>\n<meta name=\"viewport\" content=\"width=device-width\">\n<meta name=\"color-scheme\" content=\"light dark\">\n<pre>\n"
 	const dirListSuffix = "\n</pre>\n"
 	tests := []struct {
 		name, escaped string

@@ -58,6 +58,7 @@ var depsRules = `
 	  internal/platform,
 	  internal/profilerecord,
 	  internal/runtime/pprof/label,
+	  internal/simd/variants,
 	  internal/syslist,
 	  internal/trace/tracev2,
 	  internal/trace/traceviewer/format,
@@ -179,6 +180,10 @@ var depsRules = `
 	MATH
 	< runtime/metrics;
 
+	MATH
+	< simd/internal/spec
+	< simd/internal/simdref;
+
 	MATH, unicode/utf8
 	< strconv;
 
@@ -259,6 +264,10 @@ var depsRules = `
 	< encoding/binary;
 
 	FMT, encoding < flag;
+
+	FMT, simd/archsimd < simd/internal/bridge;
+
+	simd/internal/bridge, internal/simd/variants < simd;
 
 	fmt !< encoding/base32, encoding/base64;
 
@@ -426,6 +435,7 @@ var depsRules = `
 	golang.org/x/net/dns/dnsmessage,
 	golang.org/x/net/lif,
 	internal/godebug,
+	internal/goversion,
 	internal/nettrace,
 	internal/poll,
 	internal/routebsd,
@@ -776,6 +786,9 @@ var depsRules = `
 
 	crypto/internal/cryptotest, encoding/hex
 	< crypto/internal/cryptotest/wycheproof;
+
+	FMT, encoding/json, time, regexp
+	< crypto/internal/cryptotest/x509limbo;
 
 	CGO, FMT
 	< crypto/internal/sysrand/internal/seccomp;

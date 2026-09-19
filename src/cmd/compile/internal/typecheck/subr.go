@@ -96,9 +96,10 @@ func AddImplicitDots(n *ir.SelectorExpr) *ir.SelectorExpr {
 // CalcMethods calculates all the methods (including embedding) of a non-interface
 // type t.
 func CalcMethods(t *types.Type) {
-	if t == nil || len(t.AllMethods()) != 0 {
+	if t == nil || t.MethodsComputed() {
 		return
 	}
+	defer t.SetMethodsComputed(true)
 
 	// mark top-level method symbols
 	// so that expand1 doesn't consider them.
@@ -130,10 +131,20 @@ func CalcMethods(t *types.Type) {
 		// add it to the base type method list
 		f = f.Copy()
 		f.Embedded = 1 // needs a trampoline
-		for _, d := range path {
-			if d.field.Type.IsPtr() {
-				f.Embedded = 2
-				break
+		if types.IsInterfaceMethod(f.Type) {
+			// Interface methods use Offset as an itab slot.
+			f.Embedded = 2
+		} else {
+			var offset int64
+			for _, d := range path {
+				if d.field.Type.IsPtr() {
+					f.Embedded = 2
+					break
+				}
+				offset += d.field.Offset
+			}
+			if f.Embedded == 1 {
+				f.Offset = offset
 			}
 		}
 		ms = append(ms, f)

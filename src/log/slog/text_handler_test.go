@@ -11,12 +11,21 @@ import (
 	"fmt"
 	"internal/testenv"
 	"io"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 )
 
 var testTime = time.Date(2000, 1, 2, 3, 4, 5, 0, time.UTC)
+
+var marshalerASCII = func() string {
+	b := make([]byte, 128)
+	for i := range b {
+		b[i] = byte(i)
+	}
+	return string(b)
+}()
 
 func TestTextHandler(t *testing.T) {
 	for _, test := range []struct {
@@ -48,6 +57,11 @@ func TestTextHandler(t *testing.T) {
 			"TextMarshaler",
 			Any("t", text{"abc"}),
 			`t`, `"text{\"abc\"}"`,
+		},
+		{
+			"TextMarshaler escapes",
+			Any("t", text{marshalerASCII}),
+			`t`, strconv.Quote(fmt.Sprintf("text{%q}", marshalerASCII)),
 		},
 		{
 			"TextMarshaler error",
@@ -178,6 +192,27 @@ func TestTextHandlerAlloc(t *testing.T) {
 	h = h.WithGroup("s")
 	r.AddAttrs(Group("g", Int("a", 1)))
 	wantAllocs(t, 0, func() { h.Handle(context.Background(), r) })
+}
+
+func TestTextHandlerTextAppenderNoAlloc(t *testing.T) {
+	testenv.SkipIfOptimizationOff(t)
+	r := NewRecord(testTime, LevelInfo, "msg", 0)
+	r.AddAttrs(Any("t", textAppend{"abc"}))
+	h := NewTextHandler(io.Discard, nil)
+	wantAllocs(t, 0, func() { h.Handle(context.Background(), r) })
+}
+
+func BenchmarkTextHandlerTextAppender(b *testing.B) {
+	r := NewRecord(testTime, LevelInfo, "msg", 0)
+	r.AddAttrs(Any("t", textAppend{"abc"}))
+	h := NewTextHandler(io.Discard, nil)
+	ctx := b.Context()
+	b.ReportAllocs()
+	for b.Loop() {
+		if err := h.Handle(ctx, r); err != nil {
+			b.Fatal(err)
+		}
+	}
 }
 
 func TestNeedsQuoting(t *testing.T) {

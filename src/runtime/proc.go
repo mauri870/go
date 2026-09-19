@@ -217,6 +217,13 @@ func main() {
 	gcenable()
 	defaultGOMAXPROCSUpdateEnable() // don't STW before runtime initialized.
 
+	// If we encountered a removed GODEBUG during startup we can panic now.
+	if k := invalidGODEBUG.key; k != "" {
+		v := invalidGODEBUG.value
+		r := strconv.Itoa(invalidGODEBUG.removed)
+		fatal(`removed GODEBUG "` + k + `" set to old value "` + v + `" in environment (https://go.dev/doc/godebug#go-1` + r + `)`)
+	}
+
 	mainInitDoneChan = make(chan bool)
 	if iscgo {
 		if _cgo_pthread_key_created == nil {
@@ -1111,7 +1118,7 @@ func (mp *m) hasCgoOnStack() bool {
 const (
 	// osHasLowResTimer indicates that the platform's internal timer system has a low resolution,
 	// typically on the order of 1 ms or more.
-	osHasLowResTimer = GOOS == "windows" || GOOS == "openbsd" || GOOS == "netbsd"
+	osHasLowResTimer = GOOS == "windows" || GOOS == "openbsd" || GOOS == "netbsd" || GOOS == "plan9"
 
 	// osHasLowResClockInt is osHasLowResClock but in integer form, so it can be used to create
 	// constants conditionally.
@@ -1923,6 +1930,7 @@ func mstart1() {
 	gp.sched.g = guintptr(unsafe.Pointer(gp))
 	gp.sched.pc = sys.GetCallerPC()
 	gp.sched.sp = sys.GetCallerSP()
+	gp.sched.bp = getcallerfp()
 
 	asminit()
 	minit()
@@ -3590,7 +3598,7 @@ top:
 	// everything up to cap(allp) is immutable.
 	//
 	// We clear the snapshot from the M after return via
-	// mp.clearAllpSnapshop (in schedule) and on each iteration of the top
+	// mp.clearAllpSnapshot (in schedule) and on each iteration of the top
 	// loop.
 	allpSnapshot := mp.snapshotAllp()
 	// Also snapshot masks. Value changes are OK, but we can't allow
@@ -6020,6 +6028,12 @@ func (pp *p) destroy() {
 	clear(pp.sudogbuf[:])
 	pp.sudogcache = pp.sudogbuf[:0]
 	pp.pinnerCache = nil
+	if pp.pinCounterCache != nil {
+		lock(&mheap_.speciallock)
+		mheap_.specialPinCounterAlloc.free(unsafe.Pointer(pp.pinCounterCache))
+		unlock(&mheap_.speciallock)
+		pp.pinCounterCache = nil
+	}
 	clear(pp.deferpoolbuf[:])
 	pp.deferpool = pp.deferpoolbuf[:0]
 	systemstack(func() {
@@ -7462,8 +7476,8 @@ func pidleget(now int64) (*p, int64) {
 }
 
 // pidlegetSpinning tries to get a p from the _Pidle list, acquiring ownership.
-// This is called by spinning Ms (or callers than need a spinning M) that have
-// found work. If no P is available, this must synchronized with non-spinning
+// This is called by spinning Ms (or callers that need a spinning M) that have
+// found work. If no P is available, this must be synchronized with non-spinning
 // Ms that may be preparing to drop their P without discovering this work.
 //
 // sched.lock must be held.

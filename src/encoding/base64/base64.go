@@ -8,6 +8,7 @@ package base64
 import (
 	"internal/byteorder"
 	"io"
+	"math"
 	"slices"
 	"strconv"
 )
@@ -282,9 +283,17 @@ func NewEncoder(enc *Encoding, w io.Writer) io.WriteCloser {
 
 // EncodedLen returns the length in bytes of the base64 encoding
 // of an input buffer of length n.
+// It panics if the encoded length overflows int,
+// which can happen only if n > [math.MaxInt]/4*3.
 func (enc *Encoding) EncodedLen(n int) int {
 	if enc.padChar == NoPadding {
+		if n > math.MaxInt/4*3+2 {
+			panic("encoded length overflows int")
+		}
 		return n/3*4 + (n%3*8+5)/6 // minimum # chars at 6 bits per char
+	}
+	if n > math.MaxInt/4*3 {
+		panic("encoded length overflows int")
 	}
 	return (n + 2) / 3 * 4 // minimum # 4-char quanta, 3 bytes each
 }
@@ -432,10 +441,21 @@ type decoder struct {
 	readErr error // error from r.Read
 	enc     *Encoding
 	r       io.Reader
+	end     bool       // saw a padded group: no more input may follow
+	total   int64      // input consumed so far, excluding filtered newlines
 	buf     [1024]byte // leftover input
 	nbuf    int
 	out     []byte // leftover decoded output
 	outbuf  [1024 / 4 * 3]byte
+}
+
+// rebaseError updates the offset of a CorruptInputError returned by decoding
+// d.buf so that it refers to a position in the whole input stream.
+func (d *decoder) rebaseError(err error) error {
+	if e, ok := err.(CorruptInputError); ok {
+		return CorruptInputError(int64(e) + d.total)
+	}
+	return err
 }
 
 func (d *decoder) Read(p []byte) (n int, err error) {
@@ -465,11 +485,19 @@ func (d *decoder) Read(p []byte) (n int, err error) {
 		d.nbuf += nn
 	}
 
+	// A padded group must end the stream: decoding the same input as a whole
+	// reports any input after it as garbage.
+	if d.end && d.nbuf > 0 {
+		d.err = CorruptInputError(d.total)
+		return 0, d.err
+	}
+
 	if d.nbuf < 4 {
 		if d.enc.padChar == NoPadding && d.nbuf > 0 {
 			// Decode final fragment, without padding.
 			var nw int
 			nw, d.err = d.enc.Decode(d.outbuf[:], d.buf[:d.nbuf])
+			d.err = d.rebaseError(d.err)
 			d.nbuf = 0
 			d.out = d.outbuf[:nw]
 			n = copy(p, d.out)
@@ -499,6 +527,13 @@ func (d *decoder) Read(p []byte) (n int, err error) {
 	} else {
 		n, d.err = d.enc.Decode(p, d.buf[:nr])
 	}
+	if d.err != nil {
+		d.err = d.rebaseError(d.err)
+	} else if d.enc.padChar != NoPadding && d.buf[nr-1] == byte(d.enc.padChar) {
+		// The decoded chunk ended with a padded group.
+		d.end = true
+	}
+	d.total += int64(nr)
 	d.nbuf -= nr
 	copy(d.buf[:d.nbuf], d.buf[nr:])
 	return n, d.err

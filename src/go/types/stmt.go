@@ -174,7 +174,7 @@ func (check *Checker) suspendedCall(keyword string, call *ast.CallExpr) {
 	var x operand
 	var msg string
 	var code Code
-	switch check.rawExpr(nil, &x, call, nil, false) {
+	switch check.rawExpr(nil, &x, call, false) {
 	case conversion:
 		msg = "requires function call, not conversion"
 		code = InvalidDefer
@@ -442,7 +442,7 @@ func (check *Checker) stmt(ctxt stmtContext, s ast.Stmt) {
 		// function and method calls and receive operations can appear
 		// in statement context. Such statements may be parenthesized."
 		var x operand
-		kind := check.rawExpr(nil, &x, s.X, nil, false)
+		kind := check.rawExpr(nil, &x, s.X, false)
 		var msg string
 		var code Code
 		switch x.mode() {
@@ -464,12 +464,17 @@ func (check *Checker) stmt(ctxt stmtContext, s ast.Stmt) {
 	case *ast.SendStmt:
 		var ch, val operand
 		check.expr(nil, &ch, s.Chan)
-		check.genericExpr(&val, s.Value, nil)
-		if !ch.isValid() || !val.isValid() {
-			return
-		}
-		if elem := check.chanElem(inNode(s, s.Arrow), &ch, false); elem != nil {
-			check.assignment(&val, elem, "send")
+		if ch.isValid() {
+			// extract a target type for the sent value
+			// TODO(mark): use T in an upcoming CL
+			T := check.chanElem(inNode(s, s.Arrow), &ch, false)
+			check.genericExpr(newTarget(T, "channel send"), &val, s.Value)
+			if T != nil {
+				check.assignment(&val, T, "send")
+			}
+		} else {
+			// no target type, don't drop work on the floor
+			check.genericExpr(nil, &val, s.Value)
 		}
 
 	case *ast.IncDecStmt:

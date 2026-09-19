@@ -20,16 +20,16 @@ Basic algorithm:
 Expressions are checked recursively, top down. Expression checker functions
 are generally of the form:
 
-  func f(x *operand, e *syntax.Expr, ...)
+  func f(T *target, x *operand, e *syntax.Expr, ...)
 
-where e is the expression to be checked, and x is the result of the check.
+where e is the expression to be checked, T is the target type for e if
+e appears in an assignment context, and x is the result of the check.
 The check performed by f may fail in which case x.mode_ == invalid, and
 related error messages will have been issued by f.
 
-If a hint argument is present, it is the composite literal element type
-of an outer composite literal; it is used to type-check composite literal
-elements that have no explicit type specification in the source
-(e.g.: []T{{...}, {...}}, the hint is the type T in this case).
+If T is not nil, it represents the target type expected by the context, such as
+the LHS variable type of an assignment, the field type of a composite literal
+element, etc. It is used to infer the type or type parameters missing in e.
 
 All expressions are checked via rawExpr, which dispatches according
 to expression kind. Upon returning, rawExpr is recording the types and
@@ -953,34 +953,64 @@ const (
 	statement
 )
 
-// target represent the (signature) type and description of the LHS
-// variable of an assignment, or of a function result variable.
+// target represents the target type in an assignment context.
 type target struct {
-	sig  *Signature
+	typ Type
+	// TODO(gri) desc is only used in Checker.funcInst - do we need it?
+	//           (setting/computing desc may be expensive for not being used)
+	//           Also, if we keep it, review consistency of description.
 	desc string
+	hint bool // if set, the target may be used as untyped composite literal hint before Go 1.28
 }
 
 // newTarget creates a new target for the given type and description.
-// The result is nil if typ is not a signature.
+// The result is nil if typ is nil.
 func newTarget(typ Type, desc string) *target {
 	if typ != nil {
-		if u, _ := commonUnder(typ, nil); u != nil {
-			if sig, _ := u.(*Signature); sig != nil {
-				return &target{sig, desc}
+		return &target{typ, desc, false}
+	}
+	return nil
+}
+
+// newHint is like newTarget but it marks the result as a hint.
+func newHint(typ Type, desc string) *target {
+	if typ != nil {
+		return &target{typ, desc, true}
+	}
+	return nil
+}
+
+// sig returns the target type T if it is a signature (the result may be its Named or Alias type, if any).
+// The result is nil if T is nil or T's type set has no common signature type.
+func (T *target) sig() Type {
+	if T != nil {
+		if u, _ := commonUnder(T.typ, nil); u != nil {
+			if _, ok := u.(*Signature); ok {
+				return T.typ
 			}
 		}
 	}
 	return nil
 }
 
+// String returns a string representation of T, for debugging.
+func (T *target) String() string {
+	if T != nil {
+		return sprintf(nil, true, "target{%s, %q}", T.typ, T.desc)
+	}
+	return "no target"
+}
+
 // rawExpr typechecks expression e and initializes x with the expression
 // value or type. If an error occurred, x.mode is set to invalid.
-// If a non-nil target T is given and e is a generic function,
-// T is used to infer the type arguments for e.
-// If hint != nil, it is the type of a composite literal element.
+// If T != nil, it holds the assignment context target type.
+// If e is a generic function or function call, T is used to infer the
+// type arguments for e. If e is an untyped composite literal, starting
+// with Go 1.28, the type of T is used as the composite literal type
+// (and the composite literal must be compatible with T).
 // If allowGeneric is set, the operand type may be an uninstantiated
 // parameterized type or function value.
-func (check *Checker) rawExpr(T *target, x *operand, e syntax.Expr, hint Type, allowGeneric bool) exprKind {
+func (check *Checker) rawExpr(T *target, x *operand, e syntax.Expr, allowGeneric bool) exprKind {
 	if check.conf.Trace {
 		check.trace(e.Pos(), "-- expr %s", e)
 		check.indent++
@@ -990,7 +1020,7 @@ func (check *Checker) rawExpr(T *target, x *operand, e syntax.Expr, hint Type, a
 		}()
 	}
 
-	kind := check.exprInternal(T, x, e, hint)
+	kind := check.exprInternal(T, x, e)
 
 	if !allowGeneric {
 		check.nonGeneric(T, x)
@@ -1016,7 +1046,7 @@ func (check *Checker) nonGeneric(T *target, x *operand) {
 		}
 	case *Signature:
 		if t.tparams != nil {
-			if enableReverseTypeInference && T != nil {
+			if enableReverseTypeInference && T.sig() != nil {
 				check.funcInst(T, x.Pos(), x, nil, true)
 				return
 			}
@@ -1033,7 +1063,7 @@ func (check *Checker) nonGeneric(T *target, x *operand) {
 // exprInternal contains the core of type checking of expressions.
 // Must only be called by rawExpr.
 // (See rawExpr for an explanation of the parameters.)
-func (check *Checker) exprInternal(T *target, x *operand, e syntax.Expr, hint Type) exprKind {
+func (check *Checker) exprInternal(T *target, x *operand, e syntax.Expr) exprKind {
 	// make sure x has a valid state in case of bailout
 	// (was go.dev/issue/5770)
 	x.invalidate()
@@ -1070,14 +1100,14 @@ func (check *Checker) exprInternal(T *target, x *operand, e syntax.Expr, hint Ty
 		}
 
 	case *syntax.CompositeLit:
-		check.compositeLit(x, e, hint)
+		check.compositeLit(T, x, e)
 		if !x.isValid() {
 			goto Error
 		}
 
 	case *syntax.ParenExpr:
-		// type inference doesn't go past parentheses (target type T = nil)
-		kind := check.rawExpr(nil, x, e.X, nil, false)
+		// type inference doesn't go past parentheses (target types T/U = nil)
+		kind := check.rawExpr(nil, x, e.X, false)
 		x.expr = e
 		return kind
 
@@ -1308,19 +1338,22 @@ func (check *Checker) typeAssertion(e syntax.Expr, x *operand, T Type, typeSwitc
 }
 
 // expr typechecks expression e and initializes x with the expression value.
-// If a non-nil target T is given and e is a generic function or
-// a function call, T is used to infer the type arguments for e.
+// If T != nil, it holds the assignment context target type.
+// If e is a generic function or function call, T is used to infer the
+// type arguments for e. If e is an untyped composite literal, starting
+// with Go 1.28, the type of T is used as the composite literal type
+// (and the composite literal must be compatible with T).
 // The result must be a single value.
 // If an error occurred, x.mode is set to invalid.
 func (check *Checker) expr(T *target, x *operand, e syntax.Expr) {
-	check.rawExpr(T, x, e, nil, false)
+	check.rawExpr(T, x, e, false)
 	check.exclude(x, 1<<novalue|1<<builtin|1<<typexpr)
 	check.singleValue(x)
 }
 
 // genericExpr is like expr but the result may also be generic.
-func (check *Checker) genericExpr(x *operand, e syntax.Expr, hint Type) {
-	check.rawExpr(nil, x, e, hint, true)
+func (check *Checker) genericExpr(T *target, x *operand, e syntax.Expr) {
+	check.rawExpr(T, x, e, true)
 	check.exclude(x, 1<<novalue|1<<builtin|1<<typexpr)
 	check.singleValue(x)
 }
@@ -1332,14 +1365,16 @@ func (check *Checker) genericExpr(x *operand, e syntax.Expr, hint Type) {
 // If an error occurred, list[0] is not valid.
 func (check *Checker) multiExpr(e syntax.Expr, allowCommaOk bool) (list []*operand, commaOk bool) {
 	var x operand
-	check.rawExpr(nil, &x, e, nil, false)
+	check.rawExpr(nil, &x, e, false)
 	check.exclude(&x, 1<<novalue|1<<builtin|1<<typexpr)
 
 	if t, ok := x.typ().(*Tuple); ok && x.isValid() {
 		// multiple values
 		list = make([]*operand, t.Len())
 		for i, v := range t.vars {
-			list[i] = &operand{mode_: value, expr: e, typ_: v.typ}
+			// create a dummy expression (in place of e) for better error messages
+			dummy := syntax.NewName(syntax.StartPos(e), nth(i+1, "function result"))
+			list[i] = &operand{mode_: value, expr: dummy, typ_: v.typ}
 		}
 		return
 	}
@@ -1347,10 +1382,15 @@ func (check *Checker) multiExpr(e syntax.Expr, allowCommaOk bool) (list []*opera
 	// exactly one (possibly invalid or comma-ok) value
 	list = []*operand{&x}
 	if allowCommaOk && (x.mode() == mapindex || x.mode() == commaok || x.mode() == commaerr) {
-		x2 := &operand{mode_: value, expr: e, typ_: Typ[UntypedBool]}
+		var what string = "ok value of (comma, ok) expression"
+		var typ Type = Typ[UntypedBool]
 		if x.mode() == commaerr {
-			x2.typ_ = universeError
+			what = "err value of (comma, err) expression"
+			typ = universeError
 		}
+		// create a dummy expression (in place of e) for better error messages
+		dummy := syntax.NewName(syntax.StartPos(e), what)
+		x2 := &operand{mode_: value, expr: dummy, typ_: typ}
 		list = append(list, x2)
 		commaOk = true
 	}
@@ -1358,12 +1398,29 @@ func (check *Checker) multiExpr(e syntax.Expr, allowCommaOk bool) (list []*opera
 	return
 }
 
+// nth returns a string of the form "nth " + what, where nth
+// stands for 1st, 2nd, 3rd, 4th, etc. depending on n.
+func nth(n int, what string) string {
+	var ext string
+	switch n {
+	case 1:
+		ext = "st"
+	case 2:
+		ext = "nd"
+	case 3:
+		ext = "rd"
+	default:
+		ext = "th"
+	}
+	return fmt.Sprintf("%d%s %s", n, ext, what)
+}
+
 // exprOrType typechecks expression or type e and initializes x with the expression value or type.
 // If allowGeneric is set, the operand type may be an uninstantiated parameterized type or function
 // value.
 // If an error occurred, x.mode is set to invalid.
 func (check *Checker) exprOrType(x *operand, e syntax.Expr, allowGeneric bool) {
-	check.rawExpr(nil, x, e, nil, allowGeneric)
+	check.rawExpr(nil, x, e, allowGeneric)
 	check.exclude(x, 1<<novalue)
 	check.singleValue(x)
 }

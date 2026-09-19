@@ -106,9 +106,6 @@ type Flags struct {
 	// JSONv2 enables the json/v2 package.
 	JSONv2 bool
 
-	// JSONFormat enables use of the `format` tag option with the json packages.
-	JSONFormat bool
-
 	// GreenTeaGC enables the Green Tea GC implementation.
 	GreenTeaGC bool
 
@@ -118,9 +115,6 @@ type Flags struct {
 
 	// RuntimeFreegc enables the runtime to free and reuse memory more eagerly in some circumstances with compiler help.
 	RuntimeFreegc bool
-
-	// SizeSpecializedMalloc enables malloc implementations that are specialized per size class.
-	SizeSpecializedMalloc bool
 
 	// SIMD enables the simd package and the compiler's handling
 	// of SIMD intrinsics.
@@ -134,6 +128,6 @@ type Flags struct {
 	// arrays (KKKKVVVV).
 	MapSplitGroup bool
 
-	// GenericMethods enables use of generic methods.
-	GenericMethods bool
+	// GoListExportNewFormat enables the new format for go list -export.
+	GoListExportNewFormat bool
 }

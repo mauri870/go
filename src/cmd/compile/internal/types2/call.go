@@ -31,7 +31,8 @@ import (
 // If an error (other than a version error) occurs in any case, it is reported
 // and x.mode is set to invalid.
 func (check *Checker) funcInst(T *target, pos syntax.Pos, x *operand, inst *syntax.IndexExpr, infer bool) []Type {
-	assert(T != nil || inst != nil)
+	Tsig := T.sig()
+	assert(Tsig != nil || inst != nil)
 
 	var instErrPos poser
 	if inst != nil {
@@ -85,7 +86,7 @@ func (check *Checker) funcInst(T *target, pos syntax.Pos, x *operand, inst *synt
 		var args []*operand
 		var params []*Var
 		var reverse bool
-		if T != nil && sig.tparams != nil {
+		if Tsig != nil && sig.tparams != nil {
 			if !versionErr && !check.allowVersion(go1_21) {
 				if inst != nil {
 					check.versionErrorf(instErrPos, go1_21, "partially instantiated function in assignment")
@@ -99,7 +100,7 @@ func (check *Checker) funcInst(T *target, pos syntax.Pos, x *operand, inst *synt
 			// or the result type in a return statement. Create a pseudo-expression for that operand
 			// that makes sense when reported in error messages from infer, below.
 			expr := syntax.NewName(x.Pos(), T.desc)
-			args = []*operand{{mode_: value, expr: expr, typ_: T.sig}}
+			args = []*operand{{mode_: value, expr: expr, typ_: Tsig}}
 			reverse = true
 		}
 
@@ -306,7 +307,8 @@ func (check *Checker) callExpr(x *operand, call *syntax.CallExpr) exprKind {
 	}
 
 	// evaluate arguments
-	args, atargs := check.genericExprList(call.ArgList)
+	targetAt := func(i int) *target { return newTarget(sig.argType(i), "function parameter") }
+	args, atargs := check.genericExprList(targetAt, call.ArgList)
 	sig = check.arguments(call, sig, targs, xlist, args, atargs)
 
 	if wasGeneric && sig.TypeParams().Len() == 0 {
@@ -367,12 +369,13 @@ func (check *Checker) exprList(elist []syntax.Expr) (xlist []*operand) {
 
 // genericExprList is like exprList but result operands may be uninstantiated or partially
 // instantiated generic functions (where constraint information is insufficient to infer
-// the missing type arguments) for Go 1.21 and later.
+// the missing type arguments) for Go 1.21 and later. Additionally, typeAt must return the
+// corresponding target type for each operand, or nil if none exists.
 // For each non-generic or uninstantiated generic operand, the corresponding targsList and
 // elements do not exist (targsList is nil) or the elements are nil.
 // For each partially instantiated generic function operand, the corresponding
 // targsList elements are the operand's partial type arguments.
-func (check *Checker) genericExprList(elist []syntax.Expr) (resList []*operand, targsList [][]Type) {
+func (check *Checker) genericExprList(targetAt func(int) *target, elist []syntax.Expr) (resList []*operand, targsList [][]Type) {
 	if debug {
 		defer func() {
 			// type arguments must only exist for partially instantiated functions
@@ -388,7 +391,7 @@ func (check *Checker) genericExprList(elist []syntax.Expr) (resList []*operand, 
 	}
 
 	// Before Go 1.21, uninstantiated or partially instantiated argument functions are
-	// nor permitted. Checker.funcInst must infer missing type arguments in that case.
+	// not permitted. Checker.funcInst must infer missing type arguments in that case.
 	infer := true // for -lang < go1.21
 	n := len(elist)
 	if n > 0 && check.allowVersion(go1_21) {
@@ -415,7 +418,7 @@ func (check *Checker) genericExprList(elist []syntax.Expr) (resList []*operand, 
 			resList = []*operand{&x}
 		} else {
 			// x is not a function instantiation (it may still be a generic function).
-			check.rawExpr(nil, &x, e, nil, true)
+			check.rawExpr(targetAt(0), &x, e, true)
 			check.exclude(&x, 1<<novalue|1<<builtin|1<<typexpr)
 			if t, ok := x.typ().(*Tuple); ok && x.isValid() {
 				// x is a function call returning multiple values; it cannot be generic.
@@ -449,7 +452,7 @@ func (check *Checker) genericExprList(elist []syntax.Expr) (resList []*operand, 
 				}
 			} else {
 				// x is exactly one value (possibly invalid or uninstantiated generic function).
-				check.genericExpr(&x, e, nil)
+				check.genericExpr(targetAt(i), &x, e)
 			}
 			resList[i] = &x
 		}
@@ -875,6 +878,7 @@ func (check *Checker) selector(x *operand, e *syntax.SelectorExpr, wantType bool
 	case *Func:
 		check.objDecl(obj) // ensure fully set-up signature
 		check.addDeclDep(obj)
+		// TODO(mark): Assert that sig.rparams is nil here?
 
 		if x.mode() == typexpr {
 			// method expression
@@ -910,6 +914,7 @@ func (check *Checker) selector(x *operand, e *syntax.SelectorExpr, wantType bool
 			x.mode_ = value
 			x.typ_ = &Signature{
 				tparams:  sig.tparams,
+				recvold:  methodExprSentinel,
 				params:   NewTuple(params...),
 				results:  sig.results,
 				variadic: sig.variadic,
@@ -923,8 +928,9 @@ func (check *Checker) selector(x *operand, e *syntax.SelectorExpr, wantType bool
 
 			x.mode_ = value
 
-			// remove receiver
+			// remove/stash receiver
 			sig := *obj.typ.(*Signature)
+			sig.recvold = sig.recv
 			sig.recv = nil
 			x.typ_ = &sig
 		}
@@ -999,7 +1005,7 @@ func (check *Checker) use1(e syntax.Expr, lhs bool) bool {
 	case *syntax.ListExpr:
 		return check.useN(n.ElemList, lhs)
 	default:
-		check.rawExpr(nil, &x, e, nil, true)
+		check.rawExpr(nil, &x, e, true)
 	}
 	return x.isValid()
 }

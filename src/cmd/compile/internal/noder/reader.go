@@ -11,6 +11,7 @@ import (
 	"internal/buildcfg"
 	"internal/pkgbits"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"cmd/compile/internal/base"
@@ -19,6 +20,7 @@ import (
 	"cmd/compile/internal/inline/interleaved"
 	"cmd/compile/internal/ir"
 	"cmd/compile/internal/objw"
+	"cmd/compile/internal/pgoir"
 	"cmd/compile/internal/reflectdata"
 	"cmd/compile/internal/staticinit"
 	"cmd/compile/internal/typecheck"
@@ -798,6 +800,9 @@ func (pr *pkgReader) objIdxMayFail(idx index, implicits, explicits []*types.Type
 			sel = r.selector()
 			r.recvTypeParamNames()
 			recv = r.param()
+			if r.Version().Has(pkgbits.PreserveMethodOrder) {
+				_ = r.Len() // method index not needed in compiler
+			}
 		} else {
 			if sym.Name == "init" {
 				sym = Renameinit()
@@ -1129,6 +1134,9 @@ func (r *reader) typeParamNames() {
 
 func (r *reader) method(rext *reader) *types.Field {
 	r.Sync(pkgbits.SyncMethod)
+	if r.Version().Has(pkgbits.PreserveMethodOrder) {
+		_ = r.Len() // method index not needed in compiler
+	}
 	npos := r.pos()
 	sym := r.selector()
 	r.typeParamNames()
@@ -1136,7 +1144,7 @@ func (r *reader) method(rext *reader) *types.Field {
 	typ := r.signature(recv)
 
 	fpos := r.pos()
-	fn := ir.NewFunc(fpos, npos, ir.MethodSym(recv.Type, sym), typ)
+	fn := ir.NewFunc(fpos, npos, ir.ReceiverMethodSym(recv.Type, sym), typ)
 	name := fn.Nname
 
 	if r.hasTypeParams() {
@@ -1376,7 +1384,19 @@ func (r *reader) addBody(fn *ir.Func, method *types.Sym) {
 
 func (pri pkgReaderIndex) funcBody(fn *ir.Func) {
 	r := pri.asReader(pkgbits.SectionBody, pkgbits.SyncFuncBody)
+	panicking := true
+	defer func() {
+		if panicking {
+			// TODO not sure what the best way to print in this context is.
+			// If code panics in unified IR reading, you want *something* like this.
+			// Whoever ends up debugging the next unified IR failure, please
+			// improve this (base.Warnf?) if you can figure out how.
+			fmt.Printf("****** panic traversed funcBody of %v\n", fn)
+		}
+	}()
 	r.funcBody(fn)
+	panicking = false
+
 }
 
 // funcBody reads a function body definition from the element
@@ -2583,6 +2603,22 @@ func (r *reader) expr() (res ir.Node) {
 		identical := r.Bool()
 		x := r.expr()
 
+		// spec: "If the type is a type parameter, the constant is converted
+		// into a non-constant value of the type parameter."
+		if dstTypeParam && ir.IsConstNode(x) {
+			// ConvertVal only handles conversions to constant types.
+			if v := typecheck.ConvertVal(x.Val(), typ, false); v.Kind() != constant.Unknown {
+				x = ir.NewBasicLit(x.Pos(), typ, v)
+				// Wrap in an OCONVNOP node to ensure result is non-constant.
+				n := Implicit(ir.NewConvExpr(pos, ir.OCONVNOP, typ, x))
+				n.SetTypecheck(1)
+				return n
+			}
+			// A Go language constant could be converted to a non-constant value,
+			// like converting string to []byte/[]rune. In this case, just construct
+			// the conversion expression as usual, see #79960.
+		}
+
 		// TODO(mdempsky): Stop constructing expressions of untyped type.
 		x = typecheck.DefaultLit(x, typ)
 
@@ -2615,13 +2651,6 @@ func (r *reader) expr() (res ir.Node) {
 			}
 		}
 
-		// spec: "If the type is a type parameter, the constant is converted
-		// into a non-constant value of the type parameter."
-		if dstTypeParam && ir.IsConstNode(n) {
-			// Wrap in an OCONVNOP node to ensure result is non-constant.
-			n = Implicit(ir.NewConvExpr(pos, ir.OCONVNOP, n.Type(), n))
-			n.SetTypecheck(1)
-		}
 		return n
 
 	case exprRuntimeBuiltin:
@@ -3059,7 +3088,22 @@ func shapedMethodExpr(pos src.XPos, obj *ir.Name, sym *types.Sym) ir.Node {
 		lsym := obj.Linksym().Name
 		// Since the method is generic, we know the method name must be followed by a bracket.
 		// TODO(mark): It's not ideal to rely on string naming here. Find a more robust solution.
-		msym := sym.Pkg.Lookup(lsym[strings.LastIndex(lsym, sym.Name+"["):])
+		idx := func() int { // Find the index of the bracket following the method name.
+			depth, i := 0, len(lsym)-1
+			for {
+				switch lsym[i] {
+				case ']':
+					depth++
+				case '[':
+					depth--
+				}
+				if depth == 0 {
+					return i
+				}
+				i--
+			}
+		}()
+		msym := sym.Pkg.Lookup(lsym[idx-len(sym.Name):])
 
 		// Note that the field name here includes the type arguments; while also not ideal, the
 		// types package does not seem to complain.
@@ -3520,6 +3564,50 @@ func (r *reader) pkgInitOrder(target *ir.Package) {
 	typecheck.DeclFunc(fn)
 	r.curfn = fn
 
+	var varInitFns []*ir.Func
+	if len(initOrder) <= maxInitStatements {
+		fn.Body = r.doPkgInitOrder(initOrder)
+	} else {
+		varInitFns = r.splitLargeInitOrder(initOrder)
+		calls := make([]ir.Node, len(varInitFns))
+		for i, varInitFn := range varInitFns {
+			ir.WithFunc(fn, func() {
+				calls[i] = typecheck.Call(varInitFn.Pos(), varInitFn.Nname, nil, false)
+			})
+		}
+		fn.Body = calls
+	}
+
+	typecheck.FinishFuncBody()
+	r.curfn = nil
+	r.locals = nil
+
+	// Outline (if legal/profitable) global map inits.
+	staticinit.OutlineMapInits(fn)
+	for _, varInitFn := range varInitFns {
+		staticinit.OutlineMapInits(varInitFn)
+	}
+
+	target.Inits = append(target.Inits, fn)
+}
+
+const maxInitStatements = 1000
+
+func (r *reader) generateVarInitFunc(body []ir.Node) *ir.Func {
+	fn := staticinit.GenerateVarInitFunc()
+	typecheck.DeclFunc(fn)
+
+	old := r.curfn
+	r.curfn = fn
+	fn.Body = r.doPkgInitOrder(body)
+	r.curfn = old
+
+	typecheck.FinishFuncBody()
+
+	return fn
+}
+
+func (r *reader) doPkgInitOrder(initOrder []ir.Node) []ir.Node {
 	for i := range initOrder {
 		lhs := make([]ir.Node, r.Len())
 		for j := range lhs {
@@ -3541,20 +3629,15 @@ func (r *reader) pkgInitOrder(target *ir.Package) {
 
 		initOrder[i] = as
 	}
+	return initOrder
+}
 
-	fn.Body = initOrder
-
-	typecheck.FinishFuncBody()
-	r.curfn = nil
-	r.locals = nil
-
-	// Outline (if legal/profitable) global map inits.
-	staticinit.OutlineMapInits(fn)
-
-	// Split large init function.
-	staticinit.SplitLargeInit(fn)
-
-	target.Inits = append(target.Inits, fn)
+func (r *reader) splitLargeInitOrder(initOrder []ir.Node) []*ir.Func {
+	var initFuncs []*ir.Func
+	for chunk := range slices.Chunk(initOrder, maxInitStatements) {
+		initFuncs = append(initFuncs, r.generateVarInitFunc(chunk))
+	}
+	return initFuncs
 }
 
 func (r *reader) pkgDecls(target *ir.Package) {
@@ -3661,7 +3744,7 @@ var inlgen = 0
 
 // unifiedInlineCall implements inline.NewInline by re-reading the function
 // body from its Unified IR export data.
-func unifiedInlineCall(callerfn *ir.Func, call *ir.CallExpr, fn *ir.Func, inlIndex int) *ir.InlinedCallExpr {
+func unifiedInlineCall(callerfn *ir.Func, call *ir.CallExpr, fn *ir.Func, inlIndex int, profile *pgoir.Profile) *ir.InlinedCallExpr {
 	pri, ok := bodyReaderFor(fn)
 	if !ok {
 		base.FatalfAt(call.Pos(), "cannot inline call to %v: missing inline body", fn)
@@ -3775,7 +3858,7 @@ func unifiedInlineCall(callerfn *ir.Func, call *ir.CallExpr, fn *ir.Func, inlInd
 		// potentially be recursively inlined themselves; but we shouldn't
 		// need to read in the non-inlined bodies for the declarations
 		// themselves. But currently it's an easy fix to #50552.
-		readBodies(typecheck.Target, true)
+		readBodies(typecheck.Target, true, profile)
 
 		// Replace any "return" statements within the function body.
 		var edit func(ir.Node) ir.Node
@@ -4033,6 +4116,9 @@ func wrapType(typ *types.Type, target *ir.Package, seen map[string]*types.Type, 
 		if !types.Identical(typ, prev) {
 			base.Fatalf("collision: types %v and %v have link string %q", typ, prev, key)
 		}
+		// Wrapper generation is shared by structurally identical types.
+		// Share the cached TFlag too, without computing duplicate method sets.
+		typ.CopyTFlagFrom(prev)
 		return
 	}
 	seen[key] = typ
@@ -4044,6 +4130,9 @@ func wrapType(typ *types.Type, target *ir.Package, seen map[string]*types.Type, 
 
 	if !typ.IsInterface() {
 		typecheck.CalcMethods(typ)
+	}
+	if !typ.IsUntyped() {
+		typ.TFlag()
 	}
 	for _, meth := range typ.AllMethods() {
 		if meth.Sym.IsBlank() || !meth.IsMethod() {
@@ -4071,16 +4160,20 @@ func methodWrapper(derefs int, tbase *types.Type, method *types.Field, target *i
 		wrapper = types.NewPtr(wrapper)
 	}
 
-	sym := ir.MethodSym(wrapper, method.Sym)
-	base.Assertf(!sym.Siggen(), "already generated wrapper %v", sym)
-	sym.SetSiggen(true)
-
 	wrappee := method.Type.Recv().Type
 	if types.Identical(wrapper, wrappee) ||
 		!types.IsMethodApplicable(wrapper, method) ||
 		!reflectdata.NeedEmit(tbase) {
 		return
 	}
+	sym, sharedPromoted := ir.MethodSym(wrapper, method)
+	if sym.Siggen() {
+		if sharedPromoted {
+			return
+		}
+		base.Fatalf("already generated wrapper %v", sym)
+	}
+	sym.SetSiggen(true)
 
 	// TODO(mdempsky): Use method.Pos instead?
 	pos := base.AutogeneratedPos
@@ -4109,7 +4202,7 @@ func methodWrapper(derefs int, tbase *types.Type, method *types.Field, target *i
 }
 
 func wrapMethodValue(recvType *types.Type, method *types.Field, target *ir.Package, needed bool) {
-	sym := ir.MethodSymSuffix(recvType, method.Sym, "-fm")
+	sym := ir.ReceiverMethodSymSuffix(recvType, method.Sym, "-fm")
 	if sym.Uniq() {
 		return
 	}

@@ -27,9 +27,15 @@ type Signature struct {
 	tparams  *TypeParamList // type parameters from left to right, or nil
 	scope    *Scope         // function scope for package-local and non-instantiated signatures; nil otherwise
 	recv     *Var           // nil if not a method
+	recvold  *Var           // receiver dropped via method selection; or nil
 	params   *Tuple         // (incoming) parameters from left to right; or nil
 	results  *Tuple         // (outgoing) results from left to right; or nil
 	variadic bool           // true if the last parameter's type is of the form ...T
+
+	// If recvold is the sentinel value [methExpr], then recvold should
+	// instead be sourced from params[0]. Otherwise, recvold points to
+	// the receiver of the original method signature from which this
+	// function signature was cloned via a selector expression.
 
 	// If variadic, the last element of params ordinarily has an
 	// unnamed Slice type. As a special case, in a call to append,
@@ -37,6 +43,9 @@ type Signature struct {
 	// It may even be a named []byte type if a client instantiates
 	// T at such a type.
 }
+
+// sentinel value for detecting method expressions
+var methodExprSentinel = &Var{}
 
 // NewSignature returns a new function type for the given receiver, parameters,
 // and results, either of which may be nil. If variadic is set, the function
@@ -144,6 +153,23 @@ func (s *Signature) Variadic() bool { return s.variadic }
 
 func (s *Signature) Underlying() Type { return s }
 func (s *Signature) String() string   { return TypeString(s, nil) }
+
+// argType returns the expected type of the i'th argument in a call to s, or nil.
+func (s *Signature) argType(i int) Type {
+	assert(i >= 0)
+	if s.params == nil {
+		return nil
+	}
+	vars := s.params.vars
+	n := len(vars)
+	if i < n-1 || !s.variadic && i == n-1 {
+		return vars[i].typ
+	}
+	if s.variadic {
+		return vars[n-1].typ.(*Slice).elem
+	}
+	return nil
+}
 
 // ----------------------------------------------------------------------------
 // Implementation

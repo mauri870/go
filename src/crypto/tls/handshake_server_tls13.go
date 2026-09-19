@@ -493,6 +493,9 @@ func (hs *serverHandshakeStateTLS13) pickCertificate() error {
 		}
 		return err
 	}
+	if certificate != nil {
+		hs.c.localCertificate = certificate.Certificate
+	}
 	hs.sigAlg, err = selectSignatureScheme(c.vers, certificate, hs.clientHello.supportedSignatureAlgorithms)
 	if err != nil {
 		// getCertificate returned a certificate that is unsupported or
@@ -525,7 +528,7 @@ func (hs *serverHandshakeStateTLS13) doHelloRetryRequest(selectedGroup CurveID) 
 	// Make sure the client didn't send extra handshake messages alongside
 	// their initial client_hello. If they sent two client_hello messages,
 	// we will consume the second before they respond to the server_hello.
-	if c.hand.Len() != 0 {
+	if c.handLen() != 0 {
 		c.sendAlert(alertUnexpectedMessage)
 		return nil, errors.New("tls: handshake buffer not empty before HelloRetryRequest")
 	}

@@ -803,6 +803,129 @@ var nameConstraintsTests = []nameConstraintsTest{
 		},
 	},
 	{
+		name: "email host constraint does not match subdomains",
+		roots: []constraintsSpec{
+			{
+				ok: []string{"email:example.com"},
+			},
+		},
+		intermediates: [][]constraintsSpec{
+			{
+				{},
+			},
+		},
+		leaf: leafSpec{
+			sans: []string{"email:foo@sub.example.com"},
+		},
+		expectedError: "\"foo@sub.example.com\" is not permitted",
+	},
+	{
+		name: "excluded email host constraint",
+		roots: []constraintsSpec{
+			{
+				bad: []string{"email:example.com"},
+			},
+		},
+		intermediates: [][]constraintsSpec{
+			{
+				{},
+			},
+		},
+		leaf: leafSpec{
+			sans: []string{"email:foo@example.com"},
+		},
+		expectedError: "\"foo@example.com\" is excluded",
+	},
+	{
+		name: "excluded email host constraint does not match subdomains",
+		roots: []constraintsSpec{
+			{
+				bad: []string{"email:example.com"},
+			},
+		},
+		intermediates: [][]constraintsSpec{
+			{
+				{},
+			},
+		},
+		leaf: leafSpec{
+			sans: []string{"email:foo@sub.example.com"},
+		},
+	},
+	{
+		name: "excluded email subdomain constraint does not match parent",
+		roots: []constraintsSpec{
+			{
+				bad: []string{"email:.example.com"},
+			},
+		},
+		intermediates: [][]constraintsSpec{
+			{
+				{},
+			},
+		},
+		leaf: leafSpec{
+			sans: []string{"email:foo@example.com"},
+		},
+	},
+	{
+		name: "excluded email host constraint treats wildcard literally",
+		roots: []constraintsSpec{
+			{
+				bad: []string{"email:example.com"},
+			},
+		},
+		intermediates: [][]constraintsSpec{
+			{
+				{},
+			},
+		},
+		leaf: leafSpec{
+			sans: []string{"email:foo@*.example.com"},
+		},
+		noOpenSSL: true, // OpenSSL rejects wildcard rfc822Name domains.
+	},
+	{
+		name: "email host and subdomain constraints",
+		roots: []constraintsSpec{
+			{
+				// Mixed case exercises case-insensitive sorting and matching.
+				ok: []string{"email:EXAMPLE.com", "email:.EXAMPLE.com"},
+			},
+		},
+		intermediates: [][]constraintsSpec{
+			{
+				{},
+			},
+		},
+		leaf: leafSpec{
+			sans: []string{
+				"email:foo@example.com",
+				"email:foo@sub.example.com",
+			},
+		},
+	},
+	{
+		name: "email subdomain constraint prunes covered host",
+		roots: []constraintsSpec{
+			{
+				// Mixed case exercises case-insensitive pruning and matching.
+				ok: []string{"email:.EXAMPLE.com", "email:sub.example.com"},
+			},
+		},
+		intermediates: [][]constraintsSpec{
+			{
+				{},
+			},
+		},
+		leaf: leafSpec{
+			sans: []string{
+				"email:foo@sub.example.com",
+				"email:foo@deep.sub.example.com",
+			},
+		},
+	},
+	{
 		name: "email subdomain constraint",
 		roots: []constraintsSpec{
 			{
@@ -921,6 +1044,23 @@ var nameConstraintsTests = []nameConstraintsTest{
 		},
 	},
 	{
+		name: "URI host constraint does not match subdomains",
+		roots: []constraintsSpec{
+			{
+				ok: []string{"uri:example.com"},
+			},
+		},
+		intermediates: [][]constraintsSpec{
+			{
+				{},
+			},
+		},
+		leaf: leafSpec{
+			sans: []string{"uri:http://sub.example.com/"},
+		},
+		expectedError: "\"http://sub.example.com/\" is not permitted",
+	},
+	{
 		name: "URI with IP is rejected",
 		roots: []constraintsSpec{
 			{
@@ -1023,6 +1163,75 @@ var nameConstraintsTests = []nameConstraintsTest{
 		expectedError: "\"http://foo.com/\" is excluded",
 	},
 	{
+		name: "excluded URI host constraint does not match subdomains",
+		roots: []constraintsSpec{
+			{
+				bad: []string{"uri:foo.com"},
+			},
+		},
+		intermediates: [][]constraintsSpec{
+			{
+				{},
+			},
+		},
+		leaf: leafSpec{
+			sans: []string{"uri:http://sub.foo.com/"},
+		},
+	},
+	{
+		name: "excluded URI subdomain constraint does not match parent",
+		roots: []constraintsSpec{
+			{
+				bad: []string{"uri:.example.com"},
+			},
+		},
+		intermediates: [][]constraintsSpec{
+			{
+				{},
+			},
+		},
+		leaf: leafSpec{
+			sans: []string{"uri:https://example.com/"},
+		},
+	},
+	{
+		name: "excluded URI host constraint treats wildcard literally",
+		roots: []constraintsSpec{
+			{
+				bad: []string{"uri:example.com"},
+			},
+		},
+		intermediates: [][]constraintsSpec{
+			{
+				{},
+			},
+		},
+		leaf: leafSpec{
+			sans: []string{"uri:https://*.example.com/"},
+		},
+		noOpenSSL: true, // OpenSSL rejects wildcard URI hosts.
+	},
+	{
+		name: "URI host and subdomain constraints",
+		roots: []constraintsSpec{
+			{
+				// Mixed case exercises case-insensitive sorting and matching.
+				ok: []string{"uri:EXAMPLE.com", "uri:.EXAMPLE.com"},
+			},
+		},
+		intermediates: [][]constraintsSpec{
+			{
+				{},
+			},
+		},
+		leaf: leafSpec{
+			sans: []string{
+				"uri:https://example.com/",
+				"uri:https://sub.example.com/",
+			},
+		},
+	},
+	{
 		name: "URI subdomain constraint",
 		roots: []constraintsSpec{
 			{
@@ -1039,10 +1248,10 @@ var nameConstraintsTests = []nameConstraintsTest{
 		},
 	},
 	{
-		name: "IPv4-mapped-IPv6 exclusion does not affect IPv4",
+		name: "URI subdomain constraint does not match parent",
 		roots: []constraintsSpec{
 			{
-				bad: []string{"ip:::ffff:1.2.3.4/128"},
+				ok: []string{"uri:.foo.com"},
 			},
 		},
 		intermediates: [][]constraintsSpec{
@@ -1051,7 +1260,24 @@ var nameConstraintsTests = []nameConstraintsTest{
 			},
 		},
 		leaf: leafSpec{
-			sans: []string{"ip:1.2.3.4"},
+			sans: []string{"uri:http://foo.com/"},
+		},
+		expectedError: "\"http://foo.com/\" is not permitted",
+	},
+	{
+		name: "URI subdomain constraint matches deeper subdomains",
+		roots: []constraintsSpec{
+			{
+				ok: []string{"uri:.foo.com"},
+			},
+		},
+		intermediates: [][]constraintsSpec{
+			{
+				{},
+			},
+		},
+		leaf: leafSpec{
+			sans: []string{"uri:http://one.two.foo.com/"},
 		},
 	},
 	{
@@ -2232,6 +2458,74 @@ func TestConstraintCases(t *testing.T) {
 				privateKeys.Put(key)
 			}
 		})
+	}
+}
+
+func TestNameConstraintIPNonZeroHostBits(t *testing.T) {
+	rootKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	leafKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Two excluded iPAddress subtrees: a lower-addressed range that takes the
+	// binary-search neighbor slot, and one whose address has host bits set
+	// (10.10.10.10/16, i.e. network 10.10.0.0/16).
+	subtree := func(b ...byte) []byte {
+		gn := append([]byte{0x87, byte(len(b))}, b...)
+		return append([]byte{0x30, byte(len(gn))}, gn...)
+	}
+	var subtrees []byte
+	subtrees = append(subtrees, subtree(10, 0, 0, 0, 255, 255, 255, 252)...)
+	subtrees = append(subtrees, subtree(10, 10, 10, 10, 255, 255, 0, 0)...)
+	excluded := append([]byte{0xa1, byte(len(subtrees))}, subtrees...)
+	ncValue := append([]byte{0x30, byte(len(excluded))}, excluded...)
+
+	var serial [16]byte
+	rand.Read(serial[:])
+	rootTmpl := &Certificate{
+		SerialNumber:          new(big.Int).SetBytes(serial[:]),
+		Subject:               pkix.Name{CommonName: "Root"},
+		NotBefore:             time.Unix(1000, 0),
+		NotAfter:              time.Unix(2000, 0),
+		KeyUsage:              KeyUsageCertSign,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+		ExtraExtensions: []pkix.Extension{
+			{Id: []int{2, 5, 29, 30}, Critical: true, Value: ncValue},
+		},
+	}
+	rootDER, err := CreateCertificate(rand.Reader, rootTmpl, rootTmpl, &rootKey.PublicKey, rootKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := ParseCertificate(rootDER)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The parsed range must keep the address as encoded, host bits and all.
+	if len(root.ExcludedIPRanges) != 2 {
+		t.Fatalf("got %d excluded IP ranges, want 2", len(root.ExcludedIPRanges))
+	}
+	if got := root.ExcludedIPRanges[1].IP; !got.Equal(net.IP{10, 10, 10, 10}) {
+		t.Errorf("excluded range IP = %v, want 10.10.10.10", got)
+	}
+
+	leaf, err := makeConstraintsLeafCert(leafSpec{sans: []string{"ip:10.10.0.1"}}, leafKey, root, rootKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	roots := NewCertPool()
+	roots.AddCert(root)
+	if _, err := leaf.Verify(VerifyOptions{Roots: roots, CurrentTime: time.Unix(1500, 0)}); err == nil {
+		t.Error("leaf with IP SAN inside excluded range was accepted")
+	} else if !strings.Contains(err.Error(), "excluded by constraint") {
+		t.Errorf("got error %q, want excluded-by-constraint", err)
 	}
 }
 

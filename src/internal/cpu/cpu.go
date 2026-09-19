@@ -58,6 +58,7 @@ var X86 struct {
 	HasSSE41            bool
 	HasSSE42            bool
 	HasVAES             bool
+	HasVPCLMULQDQ       bool
 	_                   CacheLinePad
 }
 
@@ -87,6 +88,8 @@ var ARM64 struct {
 	HasDIT     bool
 	HasSB      bool
 	IsNeoverse bool
+	HasSVE     bool
+	HasSVE2    bool
 	_          CacheLinePad
 }
 
@@ -171,6 +174,7 @@ var RISCV64 struct {
 	HasZvksed         bool // ShangMi Suite: SM4 Block Cipher
 	HasZvksh          bool // ShangMi Suite: SM3 Secure Hash
 	HasZvkt           bool // Vector Data-Independent Execution Latency
+	VLENB             uint // Vector register length in bytes, 0 if undetected
 	_                 CacheLinePad
 }
 

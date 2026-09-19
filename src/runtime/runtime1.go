@@ -8,6 +8,7 @@ import (
 	"internal/abi"
 	"internal/bytealg"
 	"internal/goarch"
+	"internal/godebugs"
 	"internal/runtime/atomic"
 	"internal/strconv"
 	"unsafe"
@@ -319,6 +320,7 @@ var debug struct {
 	scheddetail              int32
 	schedtrace               int32
 	tracebackancestors       int32
+	tracebackcrash           int32
 	updatemaxprocs           int32
 	asyncpreemptoff          int32
 	harddecommit             int32
@@ -384,6 +386,7 @@ var dbgvars = []*dbgVar{
 	{name: "traceallocfree", atomic: &debug.traceallocfree},
 	{name: "tracecheckstackownership", value: &debug.traceCheckStackOwnership},
 	{name: "tracebackancestors", value: &debug.tracebackancestors},
+	{name: "tracebackcrash", value: &debug.tracebackcrash},
 	{name: "tracebacklabels", atomic: &debug.tracebacklabels, def: 1},
 	{name: "tracefpunwindoff", value: &debug.tracefpunwindoff},
 	{name: "updatemaxprocs", value: &debug.updatemaxprocs, def: 1},
@@ -470,6 +473,14 @@ func reparsedebugvars(env string) {
 	}
 }
 
+// If an invalid GODEBUG setting is found during startup time,
+// invalidGODEBUG is set to that setting so it can be reported
+// when initialization has progressed sufficiently.
+var invalidGODEBUG struct {
+	key, value string
+	removed    int
+}
+
 // parsegodebug parses the godebug string, updating variables listed in dbgvars.
 // If seen == nil, this is startup time and we process the string left to right
 // overwriting older settings with newer ones.
@@ -508,6 +519,23 @@ func parsegodebug(godebug string, seen map[string]bool) {
 			continue
 		}
 		key, value := field[:i], field[i+1:]
+
+		// Setting a removed GODEBUG is ok unless it's set to an old value.
+		// We only check at startup time per go.dev/issue/76163.
+		if seen == nil {
+			for _, info := range godebugs.Removed {
+				if info.Name == key {
+					if info.Old(value) {
+						invalidGODEBUG.key = key
+						invalidGODEBUG.value = value
+						invalidGODEBUG.removed = info.Removed
+						return // this skips the cgocheck below but we're about to fatal anyway
+					}
+					break
+				}
+			}
+		}
+
 		if seen[key] {
 			continue
 		}

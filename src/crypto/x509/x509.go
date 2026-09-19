@@ -29,6 +29,7 @@ import (
 	"crypto/elliptic"
 	"crypto/fips140"
 	"crypto/mldsa"
+	"crypto/mlkem"
 	"crypto/rsa"
 	"crypto/sha1"
 	"crypto/sha256"
@@ -67,8 +68,9 @@ type pkixPublicKey struct {
 // public key is a SubjectPublicKeyInfo structure (see RFC 5280, Section 4.1).
 //
 // It returns a *[rsa.PublicKey], *[dsa.PublicKey], *[ecdsa.PublicKey],
-// [ed25519.PublicKey] (not a pointer), *[mldsa.PublicKey], or *[ecdh.PublicKey]
-// (for X25519). More types might be supported in the future.
+// [ed25519.PublicKey] (not a pointer), *[mldsa.PublicKey], *[ecdh.PublicKey]
+// (for X25519), *[mlkem.EncapsulationKey768], or *[mlkem.EncapsulationKey1024].
+// More types might be supported in the future.
 //
 // This kind of key is commonly encoded in PEM blocks of type "PUBLIC KEY".
 func ParsePKIXPublicKey(derBytes []byte) (pub any, err error) {
@@ -141,6 +143,12 @@ func marshalPublicKey(pub any) (publicKeyBytes []byte, publicKeyAlgorithm pkix.A
 			}
 			publicKeyAlgorithm.Parameters.FullBytes = paramBytes
 		}
+	case *mlkem.EncapsulationKey768:
+		publicKeyBytes = pub.Bytes()
+		publicKeyAlgorithm.Algorithm = oidPublicKeyMLKEM768
+	case *mlkem.EncapsulationKey1024:
+		publicKeyBytes = pub.Bytes()
+		publicKeyAlgorithm.Algorithm = oidPublicKeyMLKEM1024
 	default:
 		return nil, pkix.AlgorithmIdentifier{}, fmt.Errorf("x509: unsupported public key type: %T", pub)
 	}
@@ -154,7 +162,8 @@ func marshalPublicKey(pub any) (publicKeyBytes []byte, publicKeyAlgorithm pkix.A
 //
 // The following key types are currently supported: *[rsa.PublicKey],
 // *[ecdsa.PublicKey], [ed25519.PublicKey] (not a pointer), *[mldsa.PublicKey],
-// and *[ecdh.PublicKey]. Unsupported key types result in an error.
+// *[ecdh.PublicKey], *[mlkem.EncapsulationKey768], and
+// *[mlkem.EncapsulationKey1024]. Unsupported key types result in an error.
 //
 // This kind of key is commonly encoded in PEM blocks of type "PUBLIC KEY".
 func MarshalPKIXPublicKey(pub any) ([]byte, error) {
@@ -530,6 +539,17 @@ var (
 	oidPublicKeyMLDSA44 = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 3, 17}
 	oidPublicKeyMLDSA65 = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 3, 18}
 	oidPublicKeyMLDSA87 = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 3, 19}
+	// RFC 9935, Section 3
+	//
+	//	id-alg-ml-kem-768  OBJECT IDENTIFIER ::= { joint-iso-itu-t(2)
+	//		country(16) us(840) organization(1) gov(101) csor(3)
+	//		nistAlgorithm(4) kems(4) id-alg-ml-kem-768(2) }
+	//
+	//	id-alg-ml-kem-1024 OBJECT IDENTIFIER ::= { joint-iso-itu-t(2)
+	//		country(16) us(840) organization(1) gov(101) csor(3)
+	//		nistAlgorithm(4) kems(4) id-alg-ml-kem-1024(3) }
+	oidPublicKeyMLKEM768  = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 4, 2}
+	oidPublicKeyMLKEM1024 = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 4, 3}
 )
 
 // getPublicKeyAlgorithmFromOID returns the exposed PublicKeyAlgorithm
@@ -1398,12 +1418,17 @@ func buildCertExtensions(template *Certificate, subjectIsEmpty bool, authorityKe
 		ret[n].Id = oidExtensionNameConstraints
 		ret[n].Critical = template.PermittedDNSDomainsCritical
 
-		ipAndMask := func(ipNet *net.IPNet) []byte {
+		ipAndMask := func(ipNet *net.IPNet) ([]byte, error) {
 			maskedIP := ipNet.IP.Mask(ipNet.Mask)
+			// This is extremely unlikely to actually happen, but lets save people from doing something they
+			// probably shouldn't.
+			if len(maskedIP) == net.IPv6len && maskedIP.To4() != nil {
+				return nil, errors.New("x509: IP constraint contained IPv4-mapped IPv6 address with a IPv6 mask")
+			}
 			ipAndMask := make([]byte, 0, len(maskedIP)+len(ipNet.Mask))
 			ipAndMask = append(ipAndMask, maskedIP...)
 			ipAndMask = append(ipAndMask, ipNet.Mask...)
-			return ipAndMask
+			return ipAndMask, nil
 		}
 
 		serialiseConstraints := func(dns []string, ips []*net.IPNet, emails []string, uriDomains []string) (der []byte, err error) {
@@ -1422,9 +1447,13 @@ func buildCertExtensions(template *Certificate, subjectIsEmpty bool, authorityKe
 			}
 
 			for _, ipNet := range ips {
+				encodedIPNet, err := ipAndMask(ipNet)
+				if err != nil {
+					return nil, err
+				}
 				b.AddASN1(cryptobyte_asn1.SEQUENCE, func(b *cryptobyte.Builder) {
 					b.AddASN1(cryptobyte_asn1.Tag(7).ContextSpecific(), func(b *cryptobyte.Builder) {
-						b.AddBytes(ipAndMask(ipNet))
+						b.AddBytes(encodedIPNet)
 					})
 				})
 			}
@@ -1792,6 +1821,9 @@ var emptyASN1Subject = []byte{0x30, 0}
 // be marshaled instead of the Policies field. This changed in Go 1.24. The Policies field can
 // be used to marshal policy OIDs which have components that are larger than 31
 // bits.
+//
+// IP addresses in IPAddresses which are in their IPv4-mapped IPv6 form will always be encoded
+// in their IPv4 form.
 func CreateCertificate(rand io.Reader, template, parent *Certificate, pub, priv any) ([]byte, error) {
 	key, ok := priv.(crypto.Signer)
 	if !ok {

@@ -258,11 +258,13 @@ func (check *Checker) assignVar(lhs, rhs syntax.Expr, x *operand, context string
 
 	if x == nil {
 		var target *target
-		// avoid calling ExprString if not needed
 		if T != nil {
+			// avoid calling ExprString if not needed
+			var desc string
 			if _, ok := T.Underlying().(*Signature); ok {
-				target = newTarget(T, ExprString(lhs))
+				desc = ExprString(lhs)
 			}
+			target = newTarget(T, desc)
 		}
 		x = new(operand)
 		check.expr(target, x, rhs)
@@ -382,12 +384,14 @@ func (check *Checker) returnError(at poser, lhs []*Var, rhs []*operand) {
 // If returnStmt is non-nil, initVars type-checks the implicit assignment
 // of result expressions orig_rhs to function result parameters lhs.
 func (check *Checker) initVars(lhs []*Var, orig_rhs []syntax.Expr, returnStmt syntax.Stmt) {
+	l, r := len(lhs), len(orig_rhs)
+
 	context := "assignment"
 	if returnStmt != nil {
 		context = "return statement"
+	} else if l > 1 {
+		context = "multiple assignment"
 	}
-
-	l, r := len(lhs), len(orig_rhs)
 
 	// If l == 1 and the rhs is a single call, for a better
 	// error message don't handle it as n:n mapping below.
@@ -468,6 +472,11 @@ func (check *Checker) initVars(lhs []*Var, orig_rhs []syntax.Expr, returnStmt sy
 func (check *Checker) assignVars(lhs, orig_rhs []syntax.Expr) {
 	l, r := len(lhs), len(orig_rhs)
 
+	context := "assignment"
+	if l > 1 {
+		context = "multiple assignment"
+	}
+
 	// If l == 1 and the rhs is a single call, for a better
 	// error message don't handle it as n:n mapping below.
 	isCall := false
@@ -479,7 +488,7 @@ func (check *Checker) assignVars(lhs, orig_rhs []syntax.Expr) {
 	// each value can be assigned to its corresponding variable.
 	if l == r && !isCall {
 		for i, lhs := range lhs {
-			check.assignVar(lhs, orig_rhs[i], nil, "assignment")
+			check.assignVar(lhs, orig_rhs[i], nil, context)
 		}
 		return
 	}
@@ -500,7 +509,7 @@ func (check *Checker) assignVars(lhs, orig_rhs []syntax.Expr) {
 	r = len(rhs)
 	if l == r {
 		for i, lhs := range lhs {
-			check.assignVar(lhs, nil, rhs[i], "assignment")
+			check.assignVar(lhs, nil, rhs[i], context)
 		}
 		// Only record comma-ok expression if both assignments succeeded
 		// (go.dev/issue/59371).

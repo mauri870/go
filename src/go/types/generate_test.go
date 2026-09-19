@@ -143,7 +143,7 @@ var filemap = map[string]action{
 	"infer.go":        func(f *ast.File) { fixTokenPos(f); fixInferSig(f) },
 	"initorder.go":    nil,
 	// "initorder.go": fixErrErrorfCall, // disabled for now due to unresolved error_ use implications for gopls
-	"instantiate.go":      func(f *ast.File) { fixTokenPos(f); fixCheckErrorfCall(f) },
+	"instantiate.go":      func(f *ast.File) { fixTokenPos(f); fixCheckErrorfCall(f); fixSprintf(f) },
 	"instantiate_test.go": func(f *ast.File) { renameImportPath(f, `"cmd/compile/internal/types2"->"go/types"`) },
 	"literals.go": func(f *ast.File) {
 		insertImportPath(f, `"go/token"`)
@@ -212,6 +212,7 @@ var filemap = map[string]action{
 	"universe.go":      fixGlobalTypVarDecl,
 	"util_test.go":     fixTokenPos,
 	"validtype.go":     func(f *ast.File) { fixTokenPos(f); renameSelectors(f, "Trace->_Trace") },
+	"version.go":       func(f *ast.File) { renameIdents(f, "poser->positioner") },
 }
 
 // TODO(gri) We should be able to make these rewriters more configurable/composable.

@@ -8,8 +8,47 @@ package simd_test
 
 import (
 	"math"
+	"math/bits"
 	"unsafe"
 )
+
+func rotl[T unsigned](x T, dist uint64) T {
+	size := uint64(unsafe.Sizeof(x)) * 8
+	dist = dist & (size - 1)
+	if dist == 0 {
+		return x
+	}
+	return (x << dist) | (x >> (size - dist))
+}
+
+func rotr[T unsigned](x T, dist uint64) T {
+	size := uint64(unsafe.Sizeof(x)) * 8
+	dist = dist & (size - 1)
+	if dist == 0 {
+		return x
+	}
+	return (x >> dist) | (x << (size - dist))
+}
+
+// rotlOfSlice returns a slice simulation of a left rotate
+// of a specified distance.
+func rotlOfSlice[T unsigned](dist uint64) func(x []T) []T {
+	return map1[T](func(x T) T { return rotl(x, dist) })
+}
+
+// rotrOfSlice returns a slice simulation of a right rotate
+// of a specified distance.
+func rotrOfSlice[T unsigned](dist uint64) func(x []T) []T {
+	return map1[T](func(x T) T { return rotr(x, dist) })
+}
+
+func curry2[T, U, V any](f func(T, U) V, y U) func(x T) V {
+	return func(x T) V { return f(x, y) }
+}
+
+func curry1[T, U, V any](f func(T, U) V, x T) func(y U) V {
+	return func(y U) V { return f(x, y) }
+}
 
 func less[T number](x, y T) bool {
 	return x < y
@@ -43,6 +82,15 @@ func abs[T number](x T) T {
 		return -x
 	}
 	return x
+}
+
+func neg[T number](x T) T {
+	return -x
+}
+
+func onesCount[T integer](x T) T {
+	size := uint64(unsafe.Sizeof(x)) * 8
+	return T(bits.OnesCount64(uint64(x) & ((1 << size) - 1)))
 }
 
 func ceil[T float](x T) T {
@@ -337,6 +385,121 @@ func roundSlice[T float](x []T) []T {
 	return map1[T](round)(x)
 }
 
+func negSlice[T number](x []T) []T {
+	return map1[T](neg)(x)
+}
+
+func absSlice[T number](x []T) []T {
+	return map1[T](abs)(x)
+}
+
+// isSignedInt reports whether T is a signed integer type.
+func isSignedInt[T integer]() bool {
+	var t T
+	return t-1 < 0
+}
+
+// addSaturated adds with saturation to T's range. Lanes narrower than 64 bits
+// compute in 64-bit and clamp; 64-bit lanes detect overflow directly.
+func addSaturated[T integer](a, b T) T {
+	size := uint(unsafe.Sizeof(a)) * 8
+	if size < 64 {
+		if isSignedInt[T]() {
+			s := int64(a) + int64(b)
+			hi := int64(1)<<(size-1) - 1
+			lo := -hi - 1
+			return T(min(max(s, lo), hi))
+		}
+		s := uint64(a) + uint64(b)
+		return T(min(s, uint64(1)<<size-1))
+	}
+	s := a + b
+	if isSignedInt[T]() {
+		// Only reached at 64 bits; variables so the generic conversion is
+		// checked at run time rather than as a constant for every T.
+		maxI, minI := int64(math.MaxInt64), int64(math.MinInt64)
+		if b > 0 && s < a {
+			return T(maxI)
+		}
+		if b < 0 && s > a {
+			return T(minI)
+		}
+		return s
+	}
+	if s < a {
+		return ^T(0)
+	}
+	return s
+}
+
+// subSaturated subtracts with saturation to T's range.
+func subSaturated[T integer](a, b T) T {
+	size := uint(unsafe.Sizeof(a)) * 8
+	if size < 64 {
+		if isSignedInt[T]() {
+			s := int64(a) - int64(b)
+			hi := int64(1)<<(size-1) - 1
+			lo := -hi - 1
+			return T(min(max(s, lo), hi))
+		}
+		if b > a {
+			return 0
+		}
+		return a - b
+	}
+	s := a - b
+	if isSignedInt[T]() {
+		maxI, minI := int64(math.MaxInt64), int64(math.MinInt64)
+		if b < 0 && s < a {
+			return T(maxI)
+		}
+		if b > 0 && s > a {
+			return T(minI)
+		}
+		return s
+	}
+	if b > a {
+		return 0
+	}
+	return s
+}
+
+// mulHigh returns the high half of the full-width product. Lanes narrower than
+// 64 bits widen; 64-bit lanes use bits.Mul64, adjusting for signedness.
+func mulHigh[T integer](a, b T) T {
+	size := uint(unsafe.Sizeof(a)) * 8
+	if size < 64 {
+		if isSignedInt[T]() {
+			return T((int64(a) * int64(b)) >> size)
+		}
+		return T((uint64(a) * uint64(b)) >> size)
+	}
+	hi, _ := bits.Mul64(uint64(a), uint64(b))
+	if isSignedInt[T]() {
+		shi := int64(hi)
+		if a < 0 {
+			shi -= int64(b)
+		}
+		if b < 0 {
+			shi -= int64(a)
+		}
+		return T(shi)
+	}
+	return T(hi)
+}
+
+func addSaturatedSlice[T integer](x, y []T) []T {
+	return map2[T](addSaturated)(x, y)
+}
+
+func subSaturatedSlice[T integer](x, y []T) []T {
+	return map2[T](subSaturated)(x, y)
+}
+
+func mulHighSlice[T integer](x, y []T) []T {
+	return map2[T](mulHigh)(x, y)
+}
+
 // lanewiseSlice is the common helper for interleave, deinterleave, and transpose
 // simulations. It handles lane computation, allocation, and iteration.
 // laneBits is the lane size in bits (128 for NEON/x86 128-bit, 0 for whole-input/SVE).
@@ -407,15 +570,12 @@ func fmaSlice[T float](x, y, z []T) []T {
 }
 
 // reduceSlice reduces x using fn as the combining operation.
-// The result is a vector with the reduced value in element 0 and zeros elsewhere.
-func reduceSlice[T number](x []T, fn func(a, b T) T) []T {
+func reduceSlice[T number](x []T, fn func(a, b T) T) T {
 	acc := x[0]
 	for _, v := range x[1:] {
 		acc = fn(acc, v)
 	}
-	out := make([]T, len(x))
-	out[0] = acc
-	return out
+	return acc
 }
 
 func satToInt8[T integer](x T) int8 {
@@ -592,23 +752,23 @@ func shiftSaturatingUnsignedSlice[D unsigned, S integer](x []D, y []S) []D {
 // Slice versions for const shift operations (same constant amount for all elements)
 
 // shiftLeftByConstSlice shifts all elements left by constant amount.
-func shiftLeftByConstSlice[T integer](x []T, amt uint8) []T {
+func shiftLeftByConstSlice[T integer](x []T, amt uint64) []T {
 	return map1(func(a T) T { return a << amt })(x)
 }
 
 // shiftRightByConstSlice shifts all elements right by constant amount.
 // Signed types use arithmetic shift, unsigned types use logical shift.
-func shiftRightByConstSlice[T integer](x []T, amt uint8) []T {
+func shiftRightByConstSlice[T integer](x []T, amt uint64) []T {
 	return map1(func(a T) T { return a >> amt })(x)
 }
 
 // shiftLeftSaturatingByConstSlice shifts all elements left by constant amount with signed saturation.
-func shiftLeftSaturatingByConstSlice[T signed](x []T, amt uint8) []T {
+func shiftLeftSaturatingByConstSlice[T signed](x []T, amt uint64) []T {
 	return map1(func(a T) T { return shiftSaturatingSigned(a, int8(amt)) })(x)
 }
 
 // shiftLeftSaturatingUByConstSlice shifts all elements left by constant amount with unsigned saturation.
-func shiftLeftSaturatingUByConstSlice[T unsigned](x []T, amt uint8) []T {
+func shiftLeftSaturatingUByConstSlice[T unsigned](x []T, amt uint64) []T {
 	return map1(func(a T) T { return shiftSaturatingUnsigned(a, int8(amt)) })(x)
 }
 
